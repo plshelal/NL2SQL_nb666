@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>金融问数</title>
+<style>
+:root { --primary: #1e40af; --primary-light: #3b82f6; --bg: #f1f5f9; --surface: #fff; --text: #1e293b; --text-secondary: #64748b; --border: #e2e8f0; --success: #059669; --danger: #dc2626; --radius: 10px; --shadow: 0 1px 3px rgba(0,0,0,.06); }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+.auth-page { display: flex; align-items: center; justify-content: center; height: 100vh; }
+.auth-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 40px; width: 400px; max-width: 90vw; }
+.auth-card h1 { font-size: 22px; margin-bottom: 4px; color: var(--primary); }
+.auth-card .sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+.auth-card label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; color: var(--text-secondary); }
+.auth-card input, .auth-card select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; outline: none; }
+.auth-card input:focus, .auth-card select:focus { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+.auth-card button { width: 100%; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; margin-top: 20px; background: var(--primary); color: #fff; }
+.auth-card button:hover { background: #1e3a8a; }
+.auth-card .switch { text-align: center; margin-top: 16px; font-size: 13px; color: var(--text-secondary); }
+.auth-card .switch a { color: var(--primary); cursor: pointer; font-weight: 600; }
+.auth-card .msg { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 13px; text-align: center; }
+.auth-card .msg.error { background: #fef2f2; color: var(--danger); }
+.auth-card .msg.success { background: #f0fdf4; color: var(--success); }
+.app { display: none; height: 100vh; flex-direction: column; }
+.app.active { display: flex; }
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; height: 52px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.header .logo { font-weight: 700; font-size: 16px; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+.header .logo .dot { width: 8px; height: 8px; background: var(--primary-light); border-radius: 50%; }
+.header .user-info { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.header .user-info .badge { background: #eff6ff; color: var(--primary); padding: 3px 10px; border-radius: 12px; font-weight: 600; font-size: 12px; }
+.header .user-info button { background: none; border: 1px solid var(--border); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+.main { display: flex; flex: 1; overflow: hidden; }
+.sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.sidebar-header button { width: 100%; padding: 9px; border: 1px dashed var(--border); border-radius: 8px; background: none; cursor: pointer; font-size: 13px; color: var(--primary); font-weight: 600; }
+.sidebar-header button:hover { background: #f8fafc; }
+.conv-list { flex: 1; overflow-y: auto; padding: 8px; }
+.conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; margin-bottom: 2px; display: flex; align-items: center; gap: 8px; }
+.conv-item:hover { background: #f8fafc; }
+.conv-item.active { background: #eff6ff; color: var(--primary); font-weight: 600; }
+.conv-item .del { margin-left: auto; color: #94a3b8; font-size: 16px; cursor: pointer; padding: 0 4px; display: none; }
+.conv-item:hover .del { display: block; }
+.conv-item .del:hover { color: var(--danger); }
+.chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.messages { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.msg-row { display: flex; margin-bottom: 20px; gap: 10px; }
+.msg-row.user { justify-content: flex-end; }
+.msg-row .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.msg-row.assistant .avatar { background: #eff6ff; }
+.msg-row.user .avatar { background: #e0e7ff; order: 2; }
+.msg-row .bubble { max-width: 75%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+.msg-row.user .bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
+.msg-row.assistant .bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.bubble .stage-line { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+.bubble .result-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+.bubble .result-table th { background: #f8fafc; font-weight: 600; color: var(--text-secondary); padding: 6px 10px; text-align: left; border-bottom: 2px solid var(--border); font-size: 11px; text-transform: uppercase; }
+.bubble .result-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.bubble .big-number { text-align: center; padding: 12px 0; }
+.bubble .big-number .val { font-size: 36px; font-weight: 800; color: var(--primary); }
+.bubble .big-number .lbl { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.bubble .chart-wrap { max-height: 320px; margin: 8px 0; }
+.bubble .report { background: #f8faff; border-left: 4px solid var(--primary); padding: 10px 14px; margin-top: 10px; border-radius: 0 6px 6px 0; font-size: 13px; line-height: 1.8; color: #334155; }
+.bubble .error { background: #fef2f2; color: var(--danger); padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+.bubble .state-box { padding: 10px 14px; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 8px; line-height: 1.5; }
+.bubble .state-box .icon { font-size: 17px; flex-shrink: 0; }
+.bubble .state-box.perm { background: #fef2f2; color: var(--danger); }
+.bubble .state-box.missing { background: #eff6ff; color: var(--primary); }
+.bubble .state-box.empty { color: var(--text-secondary); }
+.bubble .thinking { background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+.bubble .thinking.done { opacity:.6; }
+.bubble .thinking.collapsed .stages { display:none; }
+.bubble .thinking.collapsed .think-head { margin-bottom:0; }
+.bubble .think-head { font-size:12px; color:var(--text-secondary); margin-bottom:8px; font-weight:600; display:flex; align-items:center; gap:6px; }
+.bubble .think-head.clickable { cursor:pointer; user-select:none; }
+.bubble .think-head.clickable:hover { color:var(--primary); }
+.bubble .think-head .chev { display:inline-block; width:12px; text-align:center; transition:transform .2s; color:#94a3b8; }
+.bubble .thinking:not(.collapsed) .think-head .chev { transform:rotate(90deg); }
+.bubble .think-head .dots { display:inline-flex; gap:3px; }
+.bubble .think-head .dots span { width:5px; height:5px; border-radius:50%; background:var(--primary-light); animation:blink 1.2s infinite; }
+.bubble .think-head .dots span:nth-child(2){ animation-delay:.2s; }
+.bubble .think-head .dots span:nth-child(3){ animation-delay:.4s; }
+@keyframes blink { 0%,80%,100%{ opacity:.25; } 40%{ opacity:1; } }
+.bubble .stages { display:flex; flex-direction:column; gap:4px; }
+.bubble .stage { font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:7px; transition:all .25s; }
+.bubble .stage.done .stage-icon { color:var(--success); }
+.bubble .stage.active { color:var(--primary); font-weight:500; }
+.bubble .stage .spinner { display:inline-block; width:11px; height:11px; border:2px solid #bfdbfe; border-top-color:var(--primary); border-radius:50%; animation:spin .65s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.bubble .stage .stage-icon { width:11px; text-align:center; flex-shrink:0; }
+.input-row { padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 10px; }
+.input-row textarea { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; resize: none; min-height: 44px; max-height: 120px; outline: none; }
+.input-row textarea:focus { border-color: var(--primary-light); }
+.input-row button { padding: 10px 22px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
+.input-row button:hover { background: #1e3a8a; }
+.input-row button:disabled { background: #93c5fd; }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="auth-page" id="page-login">
+  <div class="auth-card">
+    <h1>登录</h1><div class="sub">金融问数系统</div>
+    <div class="msg" id="login-msg" style="display:none"></div>
+    <label>用户名</label><input id="login-username">
+    <label>密码</label><input id="login-password" type="password">
+    <button onclick="doLogin()">登 录</button>
+    <div class="switch">没有账号？<a onclick="showPage('register')">立即注册</a></div>
+  </div>
+</div>
+
+<!-- Register -->
+<div class="auth-page" id="page-register" style="display:none">
+  <div class="auth-card">
+    <h1>注册</h1><div class="sub">创建账号</div>
+    <div class="msg" id="reg-msg" style="display:none"></div>
+    <label>用户名</label><input id="reg-username">
+    <label>密码</label><input id="reg-password" type="password">
+    <label>所属机构</label><select id="reg-org"><option>A市</option><option>B市</option><option>C市</option><option>D市</option><option>E市</option><option>F市</option><option>G市</option><option>H市</option><option>I市</option><option>J市</option><option>K市</option><option>L市</option><option>M市</option></select>
+    <label>岗位</label><select id="reg-position"><option>综合管理</option><option>客户经理</option><option>风控专员</option><option>财务人员</option></select>
+    <label>职级</label><select id="reg-level"><option>普通员工</option><option>主管</option><option>部门经理</option><option>行领导</option></select>
+    <button onclick="doRegister()">注 册</button>
+    <div class="switch">已有账号？<a onclick="showPage('login')">返回登录</a></div>
+  </div>
+</div>
+
+<!-- Chat -->
+<div class="app" id="app-chat">
+  <header class="header">
+    <div class="logo"><span class="dot"></span>金融问数</div>
+    <div class="user-info">
+      <span id="header-username"></span>
+      <span class="badge" id="header-level"></span>
+      <span class="badge" id="header-position"></span>
+      <button onclick="doLogout()">退出</button>
+    </div>
+  </header>
+  <div class="main">
+    <aside class="sidebar">
+      <div class="sidebar-header"><button onclick="newConversation()">＋ 新对话</button></div>
+      <div class="conv-list" id="conv-list"></div>
+    </aside>
+    <div class="chat">
+      <div class="messages" id="messages"></div>
+      <div class="input-row">
+        <textarea id="query-input" placeholder="输入业务问题，Enter 发送" rows="1"></textarea>
+        <button id="send-btn" onclick="sendMessage()">发送</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script async src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script>
+// === State ===
+let token = localStorage.getItem('finance_token') || '';
+let userInfo = null;
+let conversations = [];
+let activeConvId = null;
+function storageKey() { return 'finance_chat_' + (userInfo ? userInfo.username : 'anon'); }
+function loadConversations() {
+  try { conversations = JSON.parse(localStorage.getItem(storageKey()) || '[]'); } catch(e) { conversations = []; }
+}
+function save() { localStorage.setItem(storageKey(), JSON.stringify(conversations)); localStorage.setItem('finance_token', token); }
+
+// === Auth ===
+function showPage(p) {
+  document.querySelectorAll('.auth-page').forEach(e => e.style.display = 'none');
+  document.getElementById('app-chat').classList.toggle('active', p === 'chat');
+  if (p !== 'chat') document.getElementById('page-' + p).style.display = 'flex';
+}
+function showMsg(id, t, type) { const e = document.getElementById(id); e.style.display = 'block'; e.className = 'msg ' + type; e.textContent = t; }
+async function doLogin() {
+  const u = document.getElementById('login-username').value.trim(), p = document.getElementById('login-password').value.trim();
+  if (!u||!p) return showMsg('login-msg','请填写完整','error');
+  const r = await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+  const d = await r.json();
+  if (d.code!==0) return showMsg('login-msg',d.message,'error');
+  token=d.data.token; userInfo=d.data.user;
+  localStorage.setItem('finance_token',token);
+  loadConversations();
+  document.getElementById('header-username').textContent=userInfo.username;
+  document.getElementById('header-level').textContent=userInfo.level;
+  document.getElementById('header-position').textContent=userInfo.position;
+  const redirect = new URLSearchParams(location.search).get('redirect');
+  if (redirect === 'audit') { location.href = '/static/audit.html'; return; }
+  showPage('chat'); if(conversations.length===0) newConversation(); else { activeConvId=conversations[0].id; renderAll(); }
+}
+async function doRegister() {
+  const u=document.getElementById('reg-username').value.trim(),p=document.getElementById('reg-password').value.trim();
+  const l=document.getElementById('reg-level').value,pos=document.getElementById('reg-position').value,org=document.getElementById('reg-org').value;
+  if(!u||!p) return showMsg('reg-msg','请填写完整','error');
+  const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,level:l,position:pos,org_name:org})});
+  const d=await r.json();
+  if(d.code!==0) return showMsg('reg-msg',d.message,'error');
+  showMsg('reg-msg','注册成功','success'); setTimeout(()=>showPage('login'),800);
+}
+function doLogout(){ token=''; userInfo=null; localStorage.removeItem('finance_token'); showPage('login'); }
+
+// === Conversations ===
+function newConversation() {
+  const c = { id: Date.now().toString(), title: '新对话', messages: [] };
+  conversations.unshift(c); activeConvId = c.id; save(); renderAll();
+}
+function getConv() { return conversations.find(c => c.id === activeConvId); }
+function switchConv(id) { activeConvId = id; renderAll(); }
+function deleteConv(id) {
+  conversations = conversations.filter(c => c.id !== id);
+  if (activeConvId === id) activeConvId = conversations.length > 0 ? conversations[0].id : null;
+  save(); renderAll();
+}
+
+// === Render ===
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function renderResultTable(data) {
+  if (!data || !data.length) return '';
+  const keys = Object.keys(data[0]);
+  let h = '<table class="result-table"><thead><tr>';
+  keys.forEach(k => h += `<th>${k}</th>`);
+  h += '</tr></thead><tbody>';
+  data.forEach(r => { h += '<tr>'; keys.forEach(k => h += `<td>${r[k]!==null?r[k]:'-'}</td>`); h += '</tr>'; });
+  h += '</tbody></table>'; return h;
+}
+
+// 思考过程渲染:streaming 时展开+当前步转圈;done 后自动收起,点头部切换展开/收起
+function renderThinking(m, i) {
+  if (!m.stages || !m.stages.length) return '';
+  const done = m.result !== null && m.result !== undefined || m.error || m.perm_rejected || m.missing_info;
+  const collapsed = done && !m.thinkOpen;  // thinkOpen 未设(falsy)→ 收起
+  const head = done
+    ? `<div class="think-head clickable" onclick="toggleThinking(${i}, this)"><span class="chev">▶</span>思考完成(${m.stages.length}步)</div>`
+    : `<div class="think-head"><span class="chev" style="visibility:hidden">▶</span>思考中<span class="dots"><span></span><span></span><span></span></span></div>`;
+  let body = '<div class="stages">';
+  m.stages.forEach((s, idx) => {
+    const isLast = idx === m.stages.length - 1;
+    const cur = done || !isLast ? 'done' : 'active';
+    const icon = (done || !isLast) ? '✓' : '<span class="spinner"></span>';
+    body += `<div class="stage ${cur}"><span class="stage-icon">${icon}</span>${esc(s)}</div>`;
+  });
+  body += '</div>';
+  return `<div class="thinking${done ? ' done' : ''}${collapsed ? ' collapsed' : ''}">${head}${body}</div>`;
+}
+
+// 点击思考头部切换展开/收起(只切 CSS 类 + 记状态到消息对象,不重渲染,不碰图表)
+function toggleThinking(i, el) {
+  const conv = getConv();
+  const m = conv && conv.messages[i];
+  if (!m) return;
+  m.thinkOpen = !m.thinkOpen;
+  const t = el.closest('.thinking');
+  if (t) t.classList.toggle('collapsed', !m.thinkOpen);
+}
+
+// 增量更新最后一条消息(只动最后一行,不碰已有图表,避免重渲染闪烁)
+function updateLastBubble() {
+  const conv = getConv();
+  if (!conv || !conv.messages.length) return;
+  const i = conv.messages.length - 1;
+  const el = document.getElementById('messages');
+  const row = el.lastElementChild;
+  if (row) row.outerHTML = msgHTML(conv.messages[i], i);
+  el.scrollTop = el.scrollHeight;
+}
+
+function msgHTML(m, i) {
+  if (m.role === 'user') return `<div class="msg-row user"><div class="avatar">👤</div><div class="bubble">${esc(m.content)}</div></div>`;
+  let h = `<div class="msg-row assistant"><div class="avatar">🤖</div><div class="bubble">`;
+  // 思考过程(有 stage 时顶部展示)
+  h += renderThinking(m, i);
+  if (m.error) {
+    h += `<div class="error">${esc(m.error)}</div>`;
+  } else if (m.perm_rejected) {
+    h += `<div class="state-box perm"><span class="icon">🚫</span><span>${esc(m.hint || '您无权查询相关数据,已拦截。')}</span></div>`;
+  } else if (m.missing_info) {
+    h += `<div class="state-box missing"><span class="icon">💡</span><span>${esc(m.hint || '请补充关键查询信息后再试。')}</span></div>`;
+  } else if (m.result !== null && m.result !== undefined) {
+    if (m.result.length > 0) {
+      h += renderResultTable(m.result);
+      if (m._chartData) {
+        const c = m._chartData;
+        if (c.type === 'number') h += `<div class="big-number"><div class="val">${c.value||''}</div><div class="lbl">${c.title||''}</div></div>`;
+        else if (c.type && c.type !== 'table' && c.type !== 'none') h += `<div class="chart-wrap"><canvas id="chart-${i}"></canvas></div>`;
+      }
+      if (m.perm_filtered) h += '<div style="color:#d97706;font-size:12px;margin-top:4px;">⚠ 部分数据因权限被过滤</div>';
+      if (m.report) h += `<div class="report">📝 ${esc(m.report)}</div>`;
+    } else {
+      h += `<div class="state-box empty"><span class="icon">📭</span><span>${esc(m.hint || '无数据')}</span></div>`;
+    }
+  } else if (!m.stages || !m.stages.length) {
+    // 最早一刻还没收到任何 stage
+    h += '<div class="think-head" style="color:#94a3b8;">思考中<span class="dots"><span></span><span></span><span></span></span></div>';
+  }
+  h += '</div></div>'; return h;
+}
+
+function renderAll() {
+  renderConvList(); renderMessages();
+}
+
+function renderConvList() {
+  const el = document.getElementById('conv-list');
+  if (!conversations.length) { el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-secondary);font-size:13px;">暂无对话</div>'; return; }
+  el.innerHTML = conversations.map(c => `<div class="conv-item${c.id===activeConvId?' active':''}" onclick="switchConv('${c.id}')">${c.title}<span class="del" onclick="event.stopPropagation();deleteConv('${c.id}')">×</span></div>`).join('');
+}
+
+function renderMessages() {
+  const conv = getConv();
+  const el = document.getElementById('messages');
+  if (!conv || !conv.messages.length) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-secondary);">👋 开始一段新的对话吧</div>';
+    return;
+  }
+  el.innerHTML = conv.messages.map((m, i) => msgHTML(m, i)).join('');
+  el.scrollTop = el.scrollHeight;
+  // 恢复图表
+  setTimeout(() => {
+    if (typeof Chart === 'undefined') { setTimeout(() => renderMessages(), 200); return; }
+    conv.messages.forEach((m, i) => {
+      if (m._chartData && m._chartData.type && m._chartData.type !== 'number' && m._chartData.type !== 'table' && m._chartData.type !== 'none') {
+        const cv = document.getElementById('chart-' + i);
+        if (cv && !cv._charted) {
+          cv._charted = true;
+          const c = m._chartData;
+          const isBar = c.type === 'bar';
+          new Chart(cv, { type:c.type, data:{ labels:c.labels||[], datasets:[{ label:c.title||'', data:c.values||[], backgroundColor:c.type==='pie'?['#1e40af','#7c3aed','#db2777','#ea580c','#059669','#0891b2','#ca8a04','#4f46e5']:'#3b82f6', borderColor:'#1e40af', borderWidth:1 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ title:{ display:!!c.title, text:c.title }, legend:{ display:c.type==='pie' }, datalabels:{ anchor:'end', align:'top', font:{size:11}, formatter: v => v } }, scales:c.type!=='pie'?{ x:{ title:{ display:!!c.x_label, text:c.x_label } }, y:{ title:{ display:!!c.y_label, text:c.y_label }, beginAtZero: isBar } }:{} } });
+        }
+      }
+    });
+  }, 100);
+}
+
+// === Send Message ===
+async function sendMessage() {
+  const input = document.getElementById('query-input');
+  const query = input.value.trim();
+  if (!query || !token) return;
+  input.value = ''; input.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+
+  let conv = getConv();
+  if (!conv) { newConversation(); conv = getConv(); }
+  if (conv.messages.length === 0) conv.title = query.slice(0, 20) + (query.length > 20 ? '...' : '');
+
+  // 多轮上下文
+  let chatCtx = null;
+  const hist = conv.messages.filter(m => m.role === 'user' || m.role === 'assistant');
+  if (hist.length >= 2) {
+    const turns = [];
+    for (let i = 0; i < hist.length - 1; i += 2) {
+      const u = hist[i], a = hist[i+1];
+      if (u && u.role === 'user' && a && a.role === 'assistant')
+        turns.push({ question: u.content, answer: (a.result && a.result.length) ? JSON.stringify(a.result).slice(0, 300) : (a.hint || a.error || '') });
+    }
+    // 最近3轮 + 强调最后一轮
+    chatCtx = { history: turns.slice(-3), last_turn: turns[turns.length - 1] };
+  }
+
+  // 添加用户消息 + AI 占位
+  conv.messages.push({ role: 'user', content: query });
+  const assistMsg = { role: 'assistant', result: null, _chartData: null, report: '', error: '', perm_rejected: false, missing_info: false, perm_filtered: false, hint: '', stages: [] };
+  conv.messages.push(assistMsg);
+  renderAll();
+
+  try {
+    const resp = await fetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ query, chat_context: chatCtx })
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const reader = resp.body.getReader(), decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n'); buffer = parts.pop() || '';
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        try {
+          const data = JSON.parse(line.slice(5).trim());
+          if (data.stage) { assistMsg.stages.push(data.stage); updateLastBubble(); }
+          if (data.error) assistMsg.error = data.error;
+          if (data.result !== undefined) assistMsg.result = data.result;
+          if (data.perm_rejected) assistMsg.perm_rejected = true;
+          if (data.missing_info) assistMsg.missing_info = true;
+          if (data.perm_filtered) assistMsg.perm_filtered = true;
+          if (data.hint) assistMsg.hint = data.hint;
+          if (data.chart) assistMsg._chartData = data.chart;
+          if (data.report) assistMsg.report = data.report;
+          updateLastBubble();
+        } catch(_) {}
+      }
+    }
+  } catch(err) { assistMsg.error = String(err); }
+
+  // 流结束，统一渲染
+  renderMessages();
+  save(); renderConvList();
+  document.getElementById('send-btn').disabled = false;
+}
+
+// === Init ===
+const qi = document.getElementById('query-input');
+qi.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+qi.addEventListener('input', () => { qi.style.height = 'auto'; qi.style.height = Math.min(qi.scrollHeight, 120) + 'px'; });
+
+if (token) {
+  fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(r => r.json()).then(d => {
+      if (d.code === 0 && d.data) {
+        userInfo = d.data.user;
+        document.getElementById('header-username').textContent = userInfo.username;
+        document.getElementById('header-level').textContent = userInfo.level;
+        document.getElementById('header-position').textContent = userInfo.position;
+        showPage('chat');
+        if (conversations.length) { activeConvId = conversations[0].id; renderAll(); }
+        else newConversation();
+      } else showPage('login');
+    }).catch(() => showPage('login'));
+} else showPage('login');
+</script>
+</body>
+</html>

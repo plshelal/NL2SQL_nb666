@@ -1,0 +1,24 @@
+docker run -d `
+  --name qdrant `
+  -p 6333:6333 `
+  -p 6334:6334 `
+  qdrant/qdrant:latest
+
+docker run -d `
+  --name es `
+  -p 9200:9200 `
+  -p 9300:9300 `
+  -e "discovery.type=single-node" `
+  -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" `
+  -e "xpack.security.enabled=false" `
+  elasticsearch:8.11.0
+
+
+ uv run python embedding_server.py
+
+
+登录A行客户经理账号，权限内可查各项存款余额，而不良贷款率越权
+缺少关键信息且权限以内问题：A市农商行各项存款余额是多少？ 
+关键信息齐全且权限以内问题： 2025年3月15日A市农商行各项存款余额是多少？ 
+越权问题1：不良率呢
+越权问题2：B市的呢

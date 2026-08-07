@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>金融问数 · 技术问答</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f1f5f9; }
+.header { background: #1e40af; color: #fff; padding: 16px 24px; font-size: 18px; font-weight: 700; }
+.container { max-width: 800px; margin: 20px auto; padding: 0 16px; }
+.qa-box { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+.qa-box .q { color: #1e40af; font-weight: 600; margin-bottom: 8px; }
+.qa-box .a { color: #1e293b; line-height: 1.7; white-space: pre-wrap; }
+#input-row { display: flex; gap: 10px; }
+#input-row textarea { flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: inherit; resize: none; min-height: 60px; }
+#input-row button { padding: 12px 24px; background: #1e40af; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+#input-row button:disabled { background: #93c5fd; }
+.loading { color: #64748b; font-size: 13px; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="header">金融问数 · 技术问答</div>
+<div class="container">
+  <div id="qa-list"></div>
+  <div id="input-row" style="position:sticky;bottom:16px;background:#fff;padding:16px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.1);">
+    <textarea id="question" placeholder="输入项目相关问题…" rows="2"></textarea>
+    <button onclick="ask()">提问</button>
+  </div>
+</div>
+<script>
+let chatHistory = [];
+
+async function ask() {
+  const q = document.getElementById('question').value.trim();
+  if (!q) return;
+  document.getElementById('question').value = '';
+  const qaList = document.getElementById('qa-list');
+  const loadingId = 'loading-' + Date.now();
+  qaList.innerHTML += `<div class="qa-box"><div class="q">Q: ${q.replace(/</g,'&lt;')}</div><div class="a" id="${loadingId}"><span class="loading">思考中...</span></div></div>`;
+
+  try {
+    const resp = await fetch('/api/qa', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q, history:chatHistory}) });
+    const reader = resp.body.getReader(), decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const parts = buffer.split('\n\n'); buffer = parts.pop() || '';
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        const data = JSON.parse(line.slice(5));
+        document.getElementById(loadingId).textContent = data.answer;
+        chatHistory.push({q: q, a: data.answer});
+      }
+    }
+  } catch(e) {
+    document.getElementById(loadingId).textContent = '请求失败: ' + e.message;
+  }
+}
+document.getElementById('question').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); }
+});
+</script>
+</body>
+</html>

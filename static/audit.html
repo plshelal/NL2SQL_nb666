@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>金融问数 · 审计日志</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f1f5f9; color: #1e293b; }
+.header { background: #1e40af; color: #fff; padding: 16px 24px; font-size: 18px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+.header button { padding: 6px 14px; background: transparent; border: 1px solid rgba(255,255,255,.5); color: #fff; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.container { max-width: 1200px; margin: 20px auto; padding: 0 16px; }
+.toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+.toolbar button { padding: 8px 16px; background: #1e40af; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.login-box { text-align: center; padding: 60px; background: #fff; border-radius: 12px; max-width: 400px; margin: 60px auto; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.login-box input { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+.login-box button { width: 100%; padding: 12px; background: #1e40af; color: #fff; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 12px; }
+.login-box .msg { color: #dc2626; font-size: 13px; margin-top: 8px; }
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; font-size: 13px; }
+th { background: #f8fafc; padding: 10px 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-size: 12px; color: #64748b; }
+td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rejected { color: #dc2626; font-weight: 600; }
+.allowed { color: #059669; }
+.denied { text-align: center; padding: 60px; color: #dc2626; font-size: 18px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <span>金融问数 · 审计日志</span>
+  <button id="logout-btn" style="display:none" onclick="localStorage.removeItem('finance_token');location.reload()">退出</button>
+</div>
+<div class="container">
+  <div id="login-area"></div>
+  <div id="data-area" style="display:none">
+    <div class="toolbar">
+      <button onclick="loadLogs()">刷新</button>
+      <span id="stats" style="font-size:13px;color:#64748b;"></span>
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>用户</th><th>问题</th><th>SQL</th><th>结果</th><th>权限</th><th>时间</th></tr></thead>
+      <tbody id="log-body"></tbody>
+    </table>
+  </div>
+</div>
+<script>
+const token = localStorage.getItem('finance_token');
+
+async function init() {
+  if (!token) { showLogin(); return; }
+  const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+  const d = await r.json();
+  if (!d.data) { showLogin(); return; }
+  if (d.data.user.username !== 'admin_total') { showDenied(); return; }
+  showData();
+}
+
+function showLogin() {
+  document.getElementById('login-area').innerHTML = `
+    <div class="login-box">
+      <h2>管理员登录</h2>
+      <input id="login-user" placeholder="用户名"><br>
+      <input id="login-pass" type="password" placeholder="密码">
+      <button onclick="doLogin()">登录</button>
+      <div class="msg" id="login-msg"></div>
+    </div>`;
+}
+
+function showDenied() {
+  document.getElementById('login-area').innerHTML = '<div class="denied">🔒 仅管理员可访问审计日志<br><br><a href="/static/query.html">返回问数系统</a></div>';
+}
+
+async function doLogin() {
+  const u = document.getElementById('login-user').value;
+  const p = document.getElementById('login-pass').value;
+  const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u,password:p}) });
+  const d = await r.json();
+  if (d.code !== 0) { document.getElementById('login-msg').textContent = d.message; return; }
+  localStorage.setItem('finance_token', d.data.token);
+  location.reload();
+}
+
+function showData() {
+  document.getElementById('logout-btn').style.display = 'block';
+  document.getElementById('data-area').style.display = 'block';
+  loadLogs();
+}
+
+async function loadLogs() {
+  const r = await fetch('/api/audit/logs', { headers: { 'Authorization': 'Bearer ' + token } });
+  const logs = await r.json();
+  document.getElementById('log-body').innerHTML = logs.map(l => `
+    <tr>
+      <td>${l.id}</td><td>${l.username}</td>
+      <td title="${l.query||''}">${(l.query||'').slice(0,50)}</td>
+      <td title="${l.sql||''}">${(l.sql||'').slice(0,70)}</td>
+      <td title="${l.result||''}">${(l.result||'').slice(0,70)}</td>
+      <td class="${l.rejected?'rejected':'allowed'}">${l.rejected?'越权':'正常'}</td>
+      <td>${(l.time||'').slice(0,19)}</td>
+    </tr>`).join('');
+  document.getElementById('stats').textContent = `共 ${logs.length} 条记录`;
+}
+
+init();
+</script>
+</body>
+</html>

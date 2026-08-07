@@ -1,0 +1,128 @@
+tables:
+  - name: org_info
+    role: dim
+    description: 机构信息维表，存储各分行、支行、网点机构基础信息
+    columns:
+      - name: org_code
+        role: dimension
+        description: 机构编号
+        alias: [机构编号, 分行编码, 支行编码, 网点编码, 机构代码]
+        sync: false
+      - name: org_name
+        role: dimension
+        description: 机构名称
+        alias: [机构名称, 分行名称, 支行名称, 网点名称, 分行, 支行, 网点, 机构]
+        sync: true
+
+  - name: index_data
+    role: fact
+    description: 指标数值事实表，存储每日各机构业务指标存量、发生额数据
+    columns:
+      - name: data_date
+        role: dimension
+        description: 数据日期
+        alias: [数据日期, 日期, 统计日期, 报表日期, 月末, 季末, 年末]
+        sync: false
+      - name: index_code
+        role: dimension
+        description: 指标编号
+        alias: [指标编号, 指标代码, 指标编码]
+        sync: false
+      - name: index_name
+        role: dimension
+        description: 指标名称
+        alias: [指标名称, 指标, 业务指标, 经营指标, 考核指标]
+        sync: true
+      - name: org_code
+        role: foreign_key
+        description: 机构编号，关联org_info.org_code
+        alias: [机构编号, 分行编码, 支行编码, 网点编码, 所属机构编码]
+        sync: false
+      - name: index_value
+        role: measure
+        description: 指标数值
+        alias: [指标值, 指标数值, 指标金额, 指标规模, 指标余额, 发生额, 存量]
+        sync: false
+
+  - name: index_list
+    role: dim
+    description: 指标清单维表，维护全部经营指标定义、计算口径、计量单位
+    columns:
+      - name: index_code
+        role: primary_key
+        description: 指标编号主键
+        alias: [指标编号, 指标代码, 指标编码]
+        sync: false
+      - name: index_name
+        role: dimension
+        description: 指标名称
+        alias: [指标名称, 指标, 业务指标, 经营指标, 考核指标, 报表指标]
+        sync: true
+      - name: index_desc
+        role: dimension
+        description: 指标含义说明
+        alias: [指标含义, 指标解释, 指标口径, 计算规则, 统计说明, 指标定义]
+        sync: true
+      - name: index_unit
+        role: dimension
+        description: 指标单位
+        alias: [指标单位, 单位, 计量单位, 万元, 亿元, 笔, 户, 百分比]
+        sync: true
+
+metrics:
+  - name: 各指标数值
+    description: 查询指定机构、指定日期下的指标数值，sum(index_data.index_value)
+    relevant_columns:
+      - index_data.index_value
+      - index_data.data_date
+      - index_data.org_code
+      - index_data.index_code
+    alias: [指标值, 指标数据, 指标数值, 指标余额, 指标规模, 业务存量, 发生金额]
+
+  - name: 机构指标明细
+    description: 查看各机构每日所有指标明细数据，关联机构名称、指标释义
+    relevant_columns:
+      - index_data.data_date
+      - index_data.index_code
+      - index_data.index_name
+      - index_data.org_code
+      - index_data.index_value
+      - org_info.org_name
+      - index_list.index_desc
+    alias: [机构指标明细, 分行指标数据, 支行经营报表, 网点指标清单, 全机构指标明细]
+
+  - name: 指标口径查询
+    description: 查询指标的统计口径、含义、计量单位
+    relevant_columns:
+      - index_list.index_name
+      - index_list.index_desc
+      - index_list.index_unit
+    alias: [指标口径, 指标解释, 指标定义, 指标计算规则, 指标说明]
+
+
+# 指标分组（Schema Link用）
+indicator_groups:
+  - name: 规模
+    description: 反映机构资产和负债总量水平
+    indicators: [各项存款余额, 各项贷款余额, 对公存款余额, 个人存款余额, 对公贷款余额, 个人贷款余额]
+  - name: 资产质量
+    description: 反映信贷资产风险和抵补能力
+    indicators: [不良贷款率, 不良贷款余额, 拨备覆盖率, 逾期贷款率, 资本充足率]
+  - name: 盈利能力
+    description: 反映机构收入、支出和利润水平
+    indicators: [营业收入, 营业支出, 净利润, 成本收入比, 净利息收入, 中间业务收入]
+  - name: 结构
+    description: 反映资产负债的构成比例
+    indicators: [存贷比, 个人存款占比, 对公存款占比, 个人贷款占比, 对公贷款占比, 中间业务收入占比, 净利息收入占比, 非不良贷款占比]
+  - name: 效率
+    description: 反映人均和点均经营效率
+    indicators: [人均存款, 人均贷款, 人均营收, 人均净利润, 人均利润, 点均存款, 点均贷款, 点均营收, 点均净利润, 人均客户数, 网点平均存款]
+  - name: 客户经营
+    description: 反映客户维度的经营深度
+    indicators: [零售户均存款, 零售户均贷款, 对公户均存款, 对公户均贷款, 个人客户数, 对公客户数]
+  - name: 监管
+    description: 反映相对于监管要求的安全边际
+    indicators: [不良率监管边际, 拨备覆盖率监管边际, 资本充足率监管边际, 逾期与不良偏差度, 拨贷率]
+  - name: 人员
+    description: 反映机构人力资源和渠道规模
+    indicators: [员工人数, 网点数量]
