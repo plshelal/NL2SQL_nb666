@@ -39,5 +39,5 @@ es:
   index_name: finance_agent
 
 llm:
-  model_name: deepseek-v4-flash
+  model_name: deepseek-v4-pro
   api_key: ${oc.env:DEEPSEEK_API_KEY,""}
