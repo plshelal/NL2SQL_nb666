@@ -19,6 +19,7 @@ class UserInfo(BaseModel):
     username: str
     level: str
     position: str
+    org_name: str = ""
 
 
 class AuthResponse(BaseModel):

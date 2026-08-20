@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS term_cache (
     column_id VARCHAR(200) NOT NULL COMMENT '命中字段ID',
     table_id VARCHAR(64) COMMENT '所属表ID',
     hit_count INT DEFAULT 1 COMMENT '命中次数',
+    source VARCHAR(32) DEFAULT 'auto_query' COMMENT '来源:auto_query/经验蒸馏/人工',
+    confidence FLOAT DEFAULT 0.5 COMMENT '置信度',
     last_hit DATETIME DEFAULT NOW() COMMENT '最后命中时间',
     PRIMARY KEY (term, column_id)
 );
@@ -83,4 +85,44 @@ CREATE TABLE IF NOT EXISTS users (
     org_name VARCHAR(128) COMMENT '所属机构',
     allowed_orgs JSON COMMENT '可查机构范围',
     created_at DATETIME DEFAULT NOW() COMMENT '创建时间'
+);
+
+-- 外部数据缓存(iFinD MCP 查询结果,TTL 过期重查)
+CREATE TABLE IF NOT EXISTS external_data_cache (
+    query_hash VARCHAR(64) PRIMARY KEY COMMENT 'server+params 的 md5',
+    tool_name VARCHAR(64) COMMENT 'MCP 工具名',
+    params JSON COMMENT '调用参数',
+    result_json JSON COMMENT '归一化结果',
+    source VARCHAR(256) COMMENT '数据来源(如 国家统计局(%))',
+    fetched_at DATETIME COMMENT '抓取时间',
+    expires_at DATETIME COMMENT '过期时间',
+    INDEX idx_expires (expires_at)
+);
+
+-- 经验日志(自迭代 P0:success/corrected/correction_event/failed/clarified)
+CREATE TABLE IF NOT EXISTS experience_log (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    query_text TEXT COMMENT '用户原始问题',
+    final_sql TEXT COMMENT '最终执行SQL',
+    outcome VARCHAR(32) COMMENT 'success/corrected/correction_event/failed/clarified',
+    error_message TEXT COMMENT '报错或纠错三元组',
+    correction_path VARCHAR(32) COMMENT 'correct=经纠错',
+    latency_ms INT COMMENT '端到端耗时',
+    user_position VARCHAR(64) COMMENT '岗位',
+    created_at DATETIME DEFAULT NOW(),
+    INDEX idx_outcome (outcome),
+    INDEX idx_created (created_at)
+);
+
+-- 蒸馏规则(自迭代:别名/SQL模式/规避规则,人工审核后注入)
+CREATE TABLE IF NOT EXISTS distilled_rules (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    rule_type VARCHAR(32) COMMENT 'alias/sql_pattern/avoidance/default_metric',
+    trigger_pattern VARCHAR(256) COMMENT '触发条件(术语或问题模式)',
+    action TEXT COMMENT '动作(映射指标/SQL模板/规避说明)',
+    source VARCHAR(32) DEFAULT 'auto_distilled' COMMENT 'auto_distilled/manual',
+    confidence FLOAT DEFAULT 0.5,
+    status VARCHAR(16) DEFAULT 'pending' COMMENT 'pending/approved/rejected',
+    evidence_count INT DEFAULT 0 COMMENT '证据次数',
+    created_at DATETIME DEFAULT NOW()
 );

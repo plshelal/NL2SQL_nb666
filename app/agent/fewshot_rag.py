@@ -1,10 +1,13 @@
 """Few-shot RAG：预计算训练数据向量，查询时快速检索"""
-import json, pickle
+import json, os, pickle
 import numpy as np
 from pathlib import Path
 
 DATA_PATH = Path(__file__).parent.parent.parent / "conf" / "finetune_data.json"
 CACHE_PATH = Path(__file__).parent.parent.parent / "conf" / "fewshot_embeddings.pkl"
+
+# TEI 嵌入服务地址(从 .env 读,默认 127.0.0.1:8081)
+_TEI_URL = f"http://{os.getenv('TEI_HOST', '127.0.0.1')}:{os.getenv('TEI_PORT', '8081')}/embed"
 
 _questions = []
 _embeddings = None
@@ -53,7 +56,7 @@ async def precompute_embeddings():
     async with httpx.AsyncClient(timeout=60) as client:
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i+batch_size]
-            resp = await client.post("http://127.0.0.1:8081/embed", json={"inputs": batch})
+            resp = await client.post(_TEI_URL, json={"inputs": batch})
             embs = [item["embeddings"] for item in resp.json()]
             all_embs.extend(embs)
 
@@ -72,7 +75,7 @@ async def retrieve_examples(query: str, top_k: int = 3) -> list[dict]:
 
     import httpx
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post("http://127.0.0.1:8081/embed", json={"inputs": [query]})
+        resp = await client.post(_TEI_URL, json={"inputs": [query]})
         query_emb = np.array(resp.json()[0]["embeddings"])
 
     # 余弦相似度
@@ -84,3 +87,49 @@ async def retrieve_examples(query: str, top_k: int = 3) -> list[dict]:
         if sims[idx] > 0.5:
             examples.append(_questions[idx])
     return examples
+
+
+async def add_example(question: str, sql: str) -> dict:
+    """追加一条 few-shot 示例到检索池(审核通过的 fewshot 规则回灌入口)。
+
+    幂等:question 已在 _questions 中则跳过。
+    文件落盘必成(JSONL 追加);向量增量更新尽力——embedding 服务不可用则降级,
+    下次启动 precompute_embeddings 会把新条目一并补算,不丢数据。
+    """
+    global _embeddings
+    _load_data()
+    question = (question or "").strip()
+    sql = (sql or "").strip()
+    if not question or not sql:
+        return {"ok": False, "reason": "empty"}
+
+    # 查重(跨重启也幂等:_questions 从文件重载,含历史追加项)
+    if any(q["question"] == question for q in _questions):
+        return {"ok": False, "reason": "duplicate"}
+
+    # 1. 追加到 JSONL 文件(retrieve 只用 "用户问题:" 后的部分,最小 input 即可)
+    import json as _j
+    rec = {"instruction": "根据用户问题和数据库结构生成MySQL SQL。只输出SQL,不解释。",
+           "input": f"用户问题: {question}", "output": sql}
+    with open(DATA_PATH, "a", encoding="utf-8") as f:
+        f.write(_j.dumps(rec, ensure_ascii=False) + "\n")
+
+    # 2. 内存索引追加
+    _questions.append({"question": question, "sql": sql})
+
+    # 3. 增量向量(尽力)
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(_TEI_URL, json={"inputs": [question]})
+            vec = np.array(resp.json()[0]["embeddings"])
+        if _embeddings is not None:
+            _embeddings = np.vstack([_embeddings, vec.reshape(1, -1)])
+        else:
+            _embeddings = vec.reshape(1, -1)
+        with open(CACHE_PATH, "wb") as f:
+            pickle.dump(_embeddings, f)
+    except Exception as e:
+        print(f"[Few-shot RAG] 增量向量失败(文件已落盘,下次启动补算): {e}")
+        return {"ok": True, "reason": "file_only", "note": "向量待启动补算"}
+    return {"ok": True}

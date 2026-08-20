@@ -21,7 +21,6 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
         query: str = state["query"]
         table_infos: list[TableInfoState] = state["table_infos"]
         metric_infos: list[MetricInfoState] = state["metric_infos"]
-        date_info = state["date_info"]
         db_info = state["db_info"]
 
         # ---- few-shot 示例 ----
@@ -67,6 +66,15 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
             system_lines.append("")
             system_lines.append(formula_context)
 
+        # RubikSQL 回灌:approved avoidance 规则(失败规避,异步独立 session+缓存)
+        try:
+            from app.agent.knowledge_feedback import get_avoidance_block
+            avoid_block = await get_avoidance_block()
+            if avoid_block:
+                system_lines.append("")
+                system_lines.append(avoid_block)
+        except Exception as e:
+            logger.warning(f"[generate_sql] avoidance 注入失败(忽略): {e}")
 
         system_prompt = "\n".join(system_lines)
 
@@ -75,27 +83,13 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
         user_prompt = (
             f"可用数据表:\n{tables_text}\n"
             f"可选指标参考:\n{yaml.dump(metric_infos, allow_unicode=True, sort_keys=False)}\n"
-            f"当前时间: {date_info['date']}, MySQL {db_info['version']}\n\n"
+            f"MySQL {db_info['version']}\n\n"
             f"用户问题: {query}"
         )
 
-        # ---- 调用模型 ----
-        from app.agent.local_llm import local_sql_model, use_local_model
-        if use_local_model and local_sql_model is not None:
-            try:
-                formatted = (
-                    f"<|im_start|>system\n{system_prompt}<|im_end|>\n"
-                    f"<|im_start|>user\n{user_prompt}<|im_end|>\n"
-                    "<|im_start|>assistant\n"
-                )
-                sql = await local_sql_model.ainvoke(formatted)
-                sql = sql.strip()
-                logger.info(f"[本地模型] 生成的sql\n：{sql}")
-            except Exception as e:
-                logger.warning(f"本地模型失败，回退DeepSeek: {e}")
-                sql = None
-        else:
-            sql = None
+        # ---- 调用模型:DeepSeek(API) ----
+        # 本地 Qwen LoRA 模型已废弃(local_llm.py 已删),统一走 DeepSeek
+        sql = None
 
         if sql is None:
             # === 两步CoT：先列字段 → 判权 → 再生成SQL ===
@@ -180,7 +174,6 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
                 "query": query,
                 "table_infos": tables_text,
                 "metric_infos": yaml.dump(metric_infos, allow_unicode=True, sort_keys=False),
-                "date_info": yaml.dump(date_info, allow_unicode=True, sort_keys=False),
                 "db_info": yaml.dump(db_info, allow_unicode=True, sort_keys=False),
                 "chat_context": system_prompt + perm_note,
                 "user_perms": "",
@@ -209,10 +202,12 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
         _involves_index_data = bool(_re_chk.search(r"\bindex_data\b", sql, _re_chk.IGNORECASE))
         if _involves_index_data:
             # SQL 现有过滤条件(DESC/ASC 也算,覆盖"取最新一期"的 ORDER BY data_date DESC)
+            # 机构/指标须兼容 IN(多机构对比/多指标对比)——历史bug:只认=导致
+            # "对比A市和B市农商行净利润"被误报缺机构
             _sql_has_date = bool(_re_chk.search(
                 r"data_date\s*(?:=|IN|BETWEEN|>|<|>=|<=|DESC|ASC)", sql, _re_chk.IGNORECASE))
-            _sql_has_org = bool(_re_chk.search(r"org_name\s*=", sql, _re_chk.IGNORECASE))
-            _sql_has_ind = bool(_re_chk.search(r"index_name\s*=", sql, _re_chk.IGNORECASE))
+            _sql_has_org = bool(_re_chk.search(r"org_name\s*(?:=|IN\s*\()", sql, _re_chk.IGNORECASE))
+            _sql_has_ind = bool(_re_chk.search(r"index_name\s*(?:=|IN\s*\()", sql, _re_chk.IGNORECASE))
 
             # 问题是否提及特定机构(A市农商行 / 江苏省X市农商行);"各机构/所有机构"不算
             _q_orgs = _re_chk.findall(r"(?:江苏省)?[A-M]市农商行", query)
@@ -231,6 +226,7 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
                 _missing.append("指标")
 
             if _missing:
+                logger.warning(f"缺关键信息: {_missing}, 生成的SQL(供排查):\n{sql}")
                 _hint = f"查询缺少关键信息:{'、'.join(_missing)},请补充后再试。"
                 logger.warning(f"缺关键信息: {_missing}, 跳过执行")
                 writer({"result": [], "missing_info": True, "hint": _hint})

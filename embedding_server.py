@@ -7,8 +7,11 @@ from sentence_transformers import SentenceTransformer
 
 app = FastAPI()
 
-# 本地完整模型
-model_path = r"C:\Users\10704\.cache\huggingface\hub\models--BAAI--bge-large-zh-v1.5\snapshots\79e7739b6ab944e86d6171e44d24c997fc1e0116"
+# 模型路径:优先环境变量(容器挂载用),缺省回落本地开发路径
+model_path = os.getenv(
+    "MODEL_PATH",
+    r"C:\Users\10704\.cache\huggingface\hub\models--BAAI--bge-large-zh-v1.5\snapshots\79e7739b6ab944e86d6171e44d24c997fc1e0116",
+)
 
 print("开始加载本地模型...")
 model = SentenceTransformer(model_path)

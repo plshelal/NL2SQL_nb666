@@ -80,7 +80,36 @@ async def query_nl2sql(
         pass
 
     return StreamingResponse(
-        service.query(query.query, query.chat_context, perms, log_id),
+        service.query(query.query, query.chat_context, perms, log_id, query.external_query),
         media_type="text/event-stream"
     )
+
+
+@query_router.post("/api/query/feedback")
+async def submit_feedback(
+    body: dict = None,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_meta_session),
+):
+    """用户对某次 AI 回答提交自然语言反馈(关联 query_log.id)。
+    反馈写入后 review_status→pending,审核员在审核中心可见。
+    防重复:同一条回答只允许反馈一次(feedback 已非空则拒绝)。
+    """
+    log_id = (body or {}).get("log_id")
+    feedback = ((body or {}).get("feedback") or "").strip()
+    if not log_id or not feedback:
+        return {"code": 1, "message": "log_id 和 feedback 必填"}
+    # 防重复:已反馈过的不允许再提交(避免审核通过后被改动)
+    existing = await session.execute(text(
+        "SELECT feedback FROM query_log WHERE id=:i"), {"i": log_id})
+    row = existing.fetchone()
+    if not row:
+        return {"code": 1, "message": "查询记录不存在"}
+    if row.feedback:
+        return {"code": 1, "message": "该回答已反馈过,无法重复提交"}
+    await session.execute(text(
+        "UPDATE query_log SET feedback=:f, review_status='pending' WHERE id=:i"),
+        {"f": feedback[:2000], "i": log_id})
+    await session.commit()
+    return {"code": 0, "message": "反馈已提交,感谢"}
 

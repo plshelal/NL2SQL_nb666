@@ -39,55 +39,48 @@ async def expand_keywords(state: DataAgentState, runtime: Runtime[DataAgentConte
         if chat_ctx and chat_ctx.get("prev_query"):
             ctx_text = f"上轮问题: {chat_ctx['prev_query']}"
 
-        # 1. LLM 扩展关键词
-        prompt = PromptTemplate(template=EXPAND_PROMPT, input_variables=["query", "context"])
-        chain = prompt | llm | JsonOutputParser()
-        result = await chain.ainvoke({"query": query, "context": ctx_text})
-
-        column_kw = result.get("column_keywords", [])
-        metric_kw = result.get("metric_keywords", [])
-        value_kw = result.get("value_keywords", [])
+        # 1. 关键词(2026-08 精简:砍掉 LLM 扩展,jieba 分词直出——小库召回 top3,
+        #    两步CoT Step1 会再做实体筛选,扩展环节净增益为负;省 1 次 LLM ~1.5s)
+        column_kw = list(keywords)
+        metric_kw = list(keywords)
+        value_kw = list(keywords)
+        # 多轮上下文补全:上轮问题里的实体词并入(保留"那B市呢"类指代解析能力)
+        if ctx_text:
+            import re as _re
+            for w in _re.findall(r"[A-M]市|农商行|存贷|贷款|存款|不良|利润|客户|员工|网点", ctx_text):
+                if w not in column_kw:
+                    column_kw.append(w)
+                if w not in metric_kw:
+                    metric_kw.append(w)
+                if w not in value_kw:
+                    value_kw.append(w)
 
         # 2. Schema Link 锁定的指标（跳过向量搜索直接注入）
         linked = state.get("linked_indicators", [])
-        link_type = state.get("link_type", "normal")
         if linked:
             logger.info(f"Schema Link 锁定指标: {linked}")
             # 直接注入到关键词列表中，省去这些指标的Qdrant搜索
             column_kw = list(set(column_kw + linked))
             metric_kw = list(set(metric_kw + linked))
 
-        # 3. 查指标公式表
-        all_terms = list(set(keywords + column_kw + metric_kw + value_kw))
-        formulas = await meta_repo.get_indicator_formulas(all_terms)
-        formula_text = ""
-        formula_indicators = []
-        if formulas:
-            items = []
-            for term, f in formulas.items():
-                items.append(f"- {term}: {f['description']}，SQL: {f['sql_template']}")
-                formula_indicators.extend(f.get("index_names", []))
-            formula_text = "【已知计算公式】\n" + "\n".join(items)
-            logger.info(f"命中指标公式: {list(formulas.keys())}")
+        # 公式匹配已迁至 schema_link 第0段(2026-08 重构):
+        # formula_context/formula_indicators 由上游写入 state,本节点不再查询——
+        # 防止同一逻辑两处维护(expand 是关键词管道,公式命中属意图层)
 
         logger.info(f"扩展关键词: column={column_kw}, metric={metric_kw}, value={value_kw}")
 
-        # 3. 批量向量化
-        col_keywords = list(set(keywords + column_kw))
-        met_keywords = list(set(keywords + metric_kw))
-        all_texts = list(set(col_keywords + met_keywords))
-
+        # 3. 批量向量化(col/met 关键词始终相同,统一一套 embedding 不重复计算)
+        all_texts = list(set(keywords + column_kw + (linked or [])))
         all_embeddings = await embeddings.aembed_documents(all_texts)
         embed_map = dict(zip(all_texts, all_embeddings))
+        shared_emb = [embed_map[t] for t in all_texts]
 
         return {
-            "expanded_column_keywords": col_keywords,
-            "expanded_metric_keywords": met_keywords,
+            "expanded_column_keywords": all_texts,
+            "expanded_metric_keywords": all_texts,
             "expanded_value_keywords": value_kw,
-            "col_embeddings": [embed_map[t] for t in col_keywords],
-            "met_embeddings": [embed_map[t] for t in met_keywords],
-            "formula_context": formula_text,
-            "formula_indicators": formula_indicators,
+            "col_embeddings": shared_emb,
+            "met_embeddings": shared_emb,
         }
     except Exception as e:
         logger.error(f"扩展关键词异常：{str(e)}")

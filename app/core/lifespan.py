@@ -6,6 +6,7 @@ from app.clients.embedding_client_manager import embedding_client_manager
 from app.clients.es_client_manager import es_client_manager
 from app.clients.mysql_client_manager import meta_mysql_client_manager, dw_mysql_client_manager
 from app.clients.qdrant_client_manager import qdrant_client_manager
+from app.core.log import logger
 
 
 @asynccontextmanager
@@ -46,6 +47,20 @@ async def lifespan(app: FastAPI):
                 created_at DATETIME DEFAULT NOW()
             )
         """))
+        # 幂等补列:反馈+审核闭环所需(老库无则加)
+        for col_ddl in (
+            "ADD COLUMN result_summary MEDIUMTEXT COMMENT 'AI最终回答摘要(反馈/审核依据)'",
+            "ADD COLUMN feedback TEXT COMMENT '用户对本次回答的自然语言反馈'",
+            "ADD COLUMN review_status VARCHAR(16) DEFAULT 'none' COMMENT 'none/pending/correct/problem'",
+            "ADD COLUMN review_note TEXT COMMENT '审核员补充描述'",
+        ):
+            col_name = col_ddl.split("ADD COLUMN ")[1].split(" ")[0]
+            r = await session.execute(text(
+                "SELECT COUNT(*) AS n FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='query_log' AND COLUMN_NAME=:c"
+            ), {"c": col_name})
+            if r.scalar() == 0:
+                await session.execute(text(f"ALTER TABLE query_log {col_ddl}"))
         await session.execute(text("""
             CREATE TABLE IF NOT EXISTS role_permission (
                 role_name VARCHAR(64) NOT NULL,
@@ -68,19 +83,91 @@ async def lifespan(app: FastAPI):
         """))
         await session.commit()
 
-    # 远程微调模型 + Few-shot RAG 预计算
-    import os
-    remote_url = os.getenv("LOCAL_MODEL_URL", "http://192.168.3.41:8100/generate")
-    use_local = os.getenv("SQL_MODEL", "deepseek") == "local"
-    from app.agent.local_llm import init_remote_model
-    init_remote_model(remote_url, enabled=use_local)
-    print(f"[SQL模型] {'本地Qwen' if use_local else 'DeepSeek'}（设SQL_MODEL=local切换）")
+        # 外部数据缓存 + 经验日志 + 蒸馏规则(自迭代 P0/B2)
+        await session.execute(text("""
+            CREATE TABLE IF NOT EXISTS external_data_cache (
+                query_hash VARCHAR(64) PRIMARY KEY,
+                tool_name VARCHAR(64),
+                params JSON,
+                result_json JSON,
+                source VARCHAR(256),
+                fetched_at DATETIME,
+                expires_at DATETIME,
+                INDEX idx_expires (expires_at)
+            )
+        """))
+        await session.execute(text("""
+            CREATE TABLE IF NOT EXISTS experience_log (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                query_text TEXT,
+                final_sql TEXT,
+                outcome VARCHAR(32),
+                error_message TEXT,
+                correction_path VARCHAR(32),
+                latency_ms INT,
+                user_position VARCHAR(64),
+                created_at DATETIME DEFAULT NOW(),
+                INDEX idx_outcome (outcome),
+                INDEX idx_created (created_at)
+            )
+        """))
+        await session.execute(text("""
+            CREATE TABLE IF NOT EXISTS distilled_rules (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                rule_type VARCHAR(32),
+                trigger_pattern VARCHAR(256),
+                action TEXT,
+                source VARCHAR(32) DEFAULT 'auto_distilled',
+                confidence FLOAT DEFAULT 0.5,
+                status VARCHAR(16) DEFAULT 'pending',
+                evidence_count INT DEFAULT 0,
+                created_at DATETIME DEFAULT NOW()
+            )
+        """))
+        await session.commit()
 
+    # Few-shot RAG 预计算(本地 LoRA 模型已废弃,统一走 DeepSeek)
     from app.agent.fewshot_rag import precompute_embeddings
     await precompute_embeddings()
 
+    # RubikSQL 语义归纳:query_log 加 analyzed_at + tool_trace 列(老表自动补)
+    async with meta_mysql_client_manager.session_factory() as s:
+        for col, ddl in [
+            ("analyzed_at", "ADD COLUMN analyzed_at DATETIME DEFAULT NULL COMMENT 'agent归纳时间,NULL=未归纳'"),
+            ("tool_trace", "ADD COLUMN tool_trace TEXT COMMENT 'Agent工具调用链,审核员可见'"),
+        ]:
+            r = await s.execute(text(
+                "SELECT COUNT(*) n FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='query_log' AND COLUMN_NAME=:c"), {"c": col})
+            if r.scalar() == 0:
+                await s.execute(text(f"ALTER TABLE query_log {ddl}"))
+        await s.commit()
+
+    # 凌晨3点定时归纳任务(后台 asyncio,服务存活期间每天触发一次)
+    import asyncio as _aio
+    import datetime as _dt
+    async def _semantic_analyze_loop():
+        while True:
+            try:
+                now = _dt.datetime.now()
+                # 下次3:00
+                next3 = now.replace(hour=3, minute=0, second=0, microsecond=0)
+                if next3 <= now:
+                    next3 = next3 + _dt.timedelta(days=1)
+                sleep_s = (next3 - now).total_seconds()
+                await _aio.sleep(sleep_s)
+                from app.agent.knowledge_feedback import analyze_problem_queries
+                n = await analyze_problem_queries()
+                logger.info(f"[定时归纳] 凌晨3点归纳完成,抽出 {n} 条 semantic_hint 规则")
+            except Exception as e:
+                logger.warning(f"[定时归纳] 异常(继续循环): {e}")
+                await _aio.sleep(3600)
+    _aio.create_task(_semantic_analyze_loop())
+
     yield
     # 释放资源
+    from app.agent.tools.ifind_mcp import ifind_mcp_manager
+    await ifind_mcp_manager.close()
     await qdrant_client_manager.close()
     await es_client_manager.close()
     await meta_mysql_client_manager.close()

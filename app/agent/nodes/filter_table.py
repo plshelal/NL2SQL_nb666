@@ -17,6 +17,12 @@ async def filter_table(state: DataAgentState, runtime: Runtime[DataAgentContext]
     try:
         query = state["query"]
         table_infos: list[TableInfoState] = state["table_infos"]
+
+        # 小库跳过:≤3张表全量保留(index_list 等维表由生成模型自行取舍;
+        # 两步CoT Step1 已筛实体,此处 LLM 过滤冗余)
+        if len(table_infos) <= 3:
+            logger.info(f"[filter_table] 候选{len(table_infos)}表≤3,跳过LLM过滤")
+            return {"table_infos": table_infos}
         # 保存原始副本——下面循环会原地修改 table_infos，state["table_infos"] 也会被改
         orig_table_infos = [{ "name": t["name"], "role": t.get("role",""), "description": t.get("description",""), "columns": [dict(c) for c in t.get("columns",[])] } for t in table_infos]
 

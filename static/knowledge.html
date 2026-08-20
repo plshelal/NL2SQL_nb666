@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<title>金融问数 · 知识管理</title>
+<style>
+:root { --primary: #1e40af; --primary-light: #3b82f6; --bg: #f1f5f9; --surface: #fff; --text: #1e293b; --text-secondary: #64748b; --border: #e2e8f0; --success: #059669; --danger: #dc2626; --radius: 10px; --shadow: 0 1px 3px rgba(0,0,0,.06); }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+
+/* ===== 布局骨架(对齐 query.html) ===== */
+.login-page { display: flex; align-items: center; justify-content: center; height: 100vh; }
+.login-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 40px; width: 400px; max-width: 90vw; }
+.login-card h1 { font-size: 22px; margin-bottom: 4px; color: var(--primary); }
+.login-card .sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+.login-card label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; color: var(--text-secondary); }
+.login-card input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; }
+.login-card input:focus { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+.login-card button { width: 100%; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; margin-top: 20px; background: var(--primary); color: #fff; }
+.login-card button:hover { background: #1e3a8a; }
+.login-card .msg { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 13px; text-align: center; }
+.login-card .msg.error { background: #fef2f2; color: var(--danger); }
+.denied { text-align: center; padding: 80px 20px; color: var(--danger); font-size: 16px; }
+.denied a { color: var(--primary); }
+
+.app { display: none; height: 100vh; flex-direction: column; }
+.app.active { display: flex; }
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; height: 52px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.header .logo { font-weight: 700; font-size: 16px; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+.header .logo .ic-logo { width: 20px; height: 20px; color: var(--primary-light); }
+/* lucide 图标尺寸适配 */
+.nav-item .ico svg { width: 17px; height: 17px; }
+.nav-item .ico { display: inline-flex; }
+.tok .x svg { width: 11px; height: 11px; }
+.sel-inds .chip .x svg { width: 11px; height: 11px; }
+.denied svg { color: var(--danger); }
+.empty-box .ico svg { display: block; margin: 0 auto 10px; }
+.header .user-info { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.header .user-info .badge { background: #eff6ff; color: var(--primary); padding: 3px 10px; border-radius: 12px; font-weight: 600; font-size: 12px; }
+.header .user-info .avatar { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; background: #64748b; cursor: default; user-select: none; }
+.header .user-info .avatar.admin { background: var(--primary); }
+.header .user-info .avatar:hover { box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
+.header .user-info button, .header .user-info a.btn { background: none; border: 1px solid var(--border); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text-secondary); text-decoration: none; }
+.header .user-info button:hover, .header .user-info a.btn:hover { color: var(--primary); border-color: var(--primary-light); }
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* ===== 左侧栏(对齐 query.html conv-item 画风) ===== */
+.sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); padding: 12px 10px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--text); transition: background .15s; position: relative; }
+.nav-item:hover { background: #f8fafc; }
+.nav-item.active { background: #eff6ff; color: var(--primary); font-weight: 600; }
+.nav-item .ico { font-size: 17px; width: 22px; text-align: center; }
+.nav-item .cnt { position: absolute; right: 10px; background: #dc2626; color: #fff; font-size: 11px; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 5px; font-weight: 600; }
+.sidebar .sec-title { font-size: 11px; color: var(--text-secondary); font-weight: 600; padding: 14px 12px 4px; letter-spacing: .5px; }
+.sidebar .foot { margin-top: auto; padding: 12px; font-size: 11px; color: #94a3b8; line-height: 1.7; border-top: 1px solid var(--border); }
+
+.content { flex: 1; overflow-y: auto; padding: 22px 26px; }
+.panel { display: none; }
+.panel.active { display: block; }
+.panel-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.panel-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 18px; }
+
+/* ===== 通用卡片/组件 ===== */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 14px; }
+.chip { display: inline-flex; align-items: center; padding: 4px 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 14px; font-size: 12px; color: var(--text); margin: 2px 4px 2px 0; }
+.chip.blue { background: #eff6ff; border-color: #bfdbfe; color: var(--primary); }
+.chip.sel { background: #eff6ff; border-color: var(--primary-light); color: var(--primary); font-weight: 600; cursor: pointer; }
+.chip.pick { background: #fff; border: 1px dashed #bfdbfe; color: var(--primary); cursor: pointer; }
+.chip.pick:hover { background: #eff6ff; }
+.btn { padding: 8px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; background: var(--primary); color: #fff; }
+.btn:hover { background: #1e3a8a; }
+.btn.ghost { background: #fff; color: var(--text-secondary); border: 1px solid var(--border); }
+.btn.ghost:hover { color: var(--primary); border-color: var(--primary-light); background: #f8fafc; }
+.btn.ok { background: var(--success); }
+.btn.ok:hover { background: #047857; }
+.btn.no { background: #fff; color: var(--danger); border: 1px solid #fecaca; }
+.btn.no:hover { background: #fef2f2; }
+.btn.sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ===== 知识总览 ===== */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.group-card h3 { font-size: 15px; color: var(--primary); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.group-card .desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5; }
+.kv { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.kv b { color: var(--text); font-weight: 600; }
+.ind-list { display: flex; flex-wrap: wrap; margin-top: 6px; }
+.formula-card .f-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.formula-card .f-term { font-size: 15px; font-weight: 700; color: var(--primary); }
+.formula-card .f-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+.sql-block { background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 10px 14px; font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+.sql-block .kw { color: #93c5fd; font-weight: 600; }
+.sql-block .str { color: #86efac; }
+.sql-block .num { color: #fdba74; }
+.sql-block .fn { color: #c4b5fd; }
+
+/* ===== 审核中心 ===== */
+.review-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
+.tab { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text-secondary); }
+.tab.active { background: var(--primary); color: #fff; font-weight: 600; }
+.tab .n { opacity: .8; font-size: 11px; margin-left: 3px; }
+.review-card { display: flex; gap: 14px; }
+.review-card .cb { padding-top: 2px; }
+.review-card .cb input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+.review-card .body { flex: 1; min-width: 0; }
+.rc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.type-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; }
+.type-badge.fewshot { background: #eff6ff; color: #1e40af; }
+.type-badge.alias { background: #f5f3ff; color: #7c3aed; }
+.type-badge.tool_choice { background: #f0fdfa; color: #0d9488; }
+.type-badge.avoidance { background: #fffbeb; color: #b45309; }
+.meta-line { font-size: 11px; color: #94a3b8; }
+.conf-bar { width: 60px; height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden; }
+.conf-bar i { display: block; height: 100%; background: var(--primary-light); border-radius: 2px; }
+.alias-viz { display: flex; align-items: center; gap: 14px; padding: 14px; background: #fafaff; border: 1px solid #ede9fe; border-radius: 8px; margin-bottom: 10px; }
+.alias-viz .from { font-size: 16px; font-weight: 700; color: #7c3aed; padding: 6px 14px; background: #fff; border: 1px solid #ddd6fe; border-radius: 8px; }
+.alias-viz .arrow { font-size: 20px; color: #a78bfa; }
+.alias-viz .to { font-size: 16px; font-weight: 700; color: var(--primary); padding: 6px 14px; background: #fff; border: 1px solid #bfdbfe; border-radius: 8px; }
+.tool-viz { display: flex; align-items: center; gap: 10px; padding: 14px; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; margin-bottom: 10px; flex-wrap: wrap; font-size: 14px; }
+.tool-viz .tool-chip { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; font-weight: 700; color: #0f766e; background: #fff; border: 1px solid #5eead4; padding: 5px 12px; border-radius: 6px; }
+.q-line { font-size: 14px; font-weight: 600; margin-bottom: 8px; line-height: 1.5; }
+.evi { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 8px; }
+.evi .e-title { font-size: 11px; color: var(--text-secondary); font-weight: 600; margin-bottom: 6px; }
+.evi .e-item { font-size: 12px; color: var(--text-secondary); padding: 3px 0; display: flex; gap: 6px; }
+.rc-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+.edit-area { margin-top: 10px; }
+.edit-area textarea { width: 100%; min-height: 120px; border: 1px solid var(--primary-light); border-radius: 8px; padding: 10px; font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; outline: none; background: #f8faff; }
+.review-card.done-app { opacity: .75; border-left: 3px solid var(--success); }
+.review-card.done-rej { opacity: .75; border-left: 3px solid var(--danger); }
+.empty-box { text-align: center; padding: 50px 20px; color: var(--text-secondary); font-size: 14px; }
+.empty-box .ico { font-size: 34px; margin-bottom: 10px; }
+.diff-del { background: #fef2f2; border: 1px solid #fecaca; }
+.diff-add { background: #f0fdf4; border: 1px solid #bbf7d0; }
+
+/* ===== 添加知识 ===== */
+.builder-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.builder-tab { padding: 9px 20px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.builder-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.form-row { margin-bottom: 14px; }
+.form-row label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.form-row label .req { color: var(--danger); }
+.form-row input[type=text], .form-row textarea, .form-row select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; font-family: inherit; }
+.form-row textarea { font-family: "Cascadia Code", Consolas, monospace; }
+.form-row input:focus, .form-row textarea:focus, .form-row select:focus { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+.hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+.picker { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.picker .p-search { padding: 8px; border-bottom: 1px solid var(--border); background: #f8fafc; }
+.picker .p-search input { width: 100%; border: none; background: none; outline: none; font-size: 13px; }
+.picker .p-list { max-height: 180px; overflow-y: auto; padding: 6px; }
+.picker .p-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.picker .p-item:hover { background: #f1f5f9; }
+.picker .p-item input { accent-color: var(--primary); }
+.sel-inds { display: flex; flex-wrap: wrap; margin-top: 8px; }
+.sel-inds .chip { background: #eff6ff; border-color: #bfdbfe; color: var(--primary); font-weight: 600; }
+.sel-inds .chip .x { margin-left: 6px; cursor: pointer; color: #93c5fd; font-weight: 700; }
+.sel-inds .chip .x:hover { color: var(--danger); }
+.sel-inds .chip .ord { background: var(--primary); color: #fff; border-radius: 50%; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; margin-right: 6px; }
+.preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.preset-btn { padding: 7px 14px; border-radius: 18px; border: 1px solid var(--border); background: #fff; font-size: 12px; cursor: pointer; color: var(--text-secondary); }
+.preset-btn.active { background: #eff6ff; border-color: var(--primary-light); color: var(--primary); font-weight: 600; }
+
+/* ===== 积木式公式构建器 ===== */
+.expr-box { border: 1px solid var(--border); border-radius: 8px; background: #f8faff; padding: 12px; min-height: 56px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.expr-box:empty::before { content: '点运算符或字段开始构建'; color: #94a3b8; font-size: 13px; }
+.tok { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 7px; font-size: 13px; gap: 7px; }
+.tok.ind { background: #eff6ff; border: 1px solid #bfdbfe; color: var(--primary); font-weight: 600; }
+.tok.ind .slot { background: var(--primary); color: #fff; border-radius: 50%; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
+.tok.num { background: #fff7ed; border: 1px solid #fdba74; color: #c2410c; font-weight: 600; }
+.tok.op { background: #f1f5f9; border: 1px solid var(--border); color: var(--text-secondary); font-weight: 700; min-width: 32px; justify-content: center; }
+.tok .x { cursor: pointer; color: #cbd5e1; font-weight: 700; font-size: 14px; }
+.tok .x:hover { color: var(--danger); }
+.tok:hover { box-shadow: 0 0 0 2px rgba(59,130,246,.15); }
+.op-row { display: flex; gap: 7px; flex-wrap: wrap; }
+.op { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-size: 13px; cursor: pointer; color: var(--text); font-weight: 600; transition: all .12s; }
+.op:hover { border-color: var(--primary-light); color: var(--primary); background: #f8faff; }
+.op.clear { color: var(--danger); border-color: #fecaca; margin-left: auto; }
+.op.clear:hover { background: #fef2f2; color: var(--danger); }
+.prev-desc { font-size: 14px; color: var(--text); padding: 9px 12px; background: #f8faff; border: 1px solid #dbeafe; border-radius: 8px; margin-bottom: 8px; font-weight: 600; }
+
+/* ===== 知识图谱 ===== */
+.gtabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; margin-bottom: 14px; width: fit-content; }
+.gtab { padding: 7px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text-secondary); font-weight: 600; }
+.gtab.active { background: var(--primary); color: #fff; }
+.gview { display: none; }
+.gview.active { display: block; }
+.graph-wrap { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); height: 560px; overflow: hidden; }
+#graph-canvas { width: 100%; height: 100%; }
+.graph-legend { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,.95); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 11px; z-index: 5; box-shadow: var(--shadow); }
+.graph-legend .lg-item { display: flex; align-items: center; gap: 6px; margin: 3px 0; cursor: pointer; }
+.graph-legend .lg-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.graph-legend .lg-cb { margin-right: 2px; }
+.graph-info { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,.97); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 12px; max-width: 240px; z-index: 5; box-shadow: var(--shadow); display: none; }
+.graph-info .gi-title { font-weight: 700; color: var(--primary); margin-bottom: 6px; font-size: 13px; }
+.graph-info .gi-row { color: var(--text-secondary); margin: 2px 0; }
+.graph-tips { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+/* 覆盖矩阵 */
+.matrix-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: auto; max-height: 580px; }
+table.matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.matrix th { background: #f8fafc; padding: 9px 10px; text-align: center; border-bottom: 2px solid var(--border); font-size: 12px; color: var(--text-secondary); position: sticky; top: 0; }
+table.matrix th:first-child { text-align: left; }
+table.matrix td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: center; }
+table.matrix td:first-child { text-align: left; font-weight: 600; }
+.mc-yes { background: #dcfce7; color: #15803d; font-weight: 700; }
+.mc-no { background: #fef2f2; color: #b91c1c; }
+.mc-num { font-weight: 600; color: var(--text); }
+.mc-bar { display: inline-block; height: 10px; border-radius: 3px; background: var(--primary-light); vertical-align: middle; margin-right: 5px; }
+/* 时间线 */
+.tl-stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.tl-stat { flex: 1; min-width: 120px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+.tl-stat .n { font-size: 24px; font-weight: 800; color: var(--primary); }
+.tl-stat .l { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.tl-chart { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+.tl-chart .tl-row { display: flex; align-items: flex-end; gap: 14px; margin-bottom: 10px; min-height: 30px; }
+.tl-chart .tl-date { width: 80px; font-size: 12px; color: var(--text-secondary); flex-shrink: 0; }
+.tl-chart .tl-bars { flex: 1; display: flex; gap: 2px; align-items: flex-end; height: 28px; }
+.tl-chart .tl-bar { border-radius: 3px 3px 0 0; min-width: 4px; transition: height .3s; position: relative; }
+.tl-chart .tl-bar.s { background: var(--success); }
+.tl-chart .tl-bar.c { background: #f59e0b; }
+.tl-chart .tl-bar.f { background: var(--danger); }
+.tl-chart .tl-bar.e { background: #ea580c; }
+.tl-chart .tl-bar:hover::after { content: attr(data-v); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 3px 7px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
+.tl-legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+.tl-legend span { display: flex; align-items: center; gap: 5px; }
+.tl-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.toast { position: fixed; top: 20px; right: 20px; z-index: 99; padding: 12px 20px; border-radius: 8px; font-size: 13px; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.15); display: none; }
+.toast.ok { background: var(--success); }
+.toast.err { background: var(--danger); }
+.toast.info { background: var(--primary); }
+</style>
+</head>
+<body>
+
+<!-- 登录(仿 audit.html) -->
+<div class="login-page" id="page-login" style="display:none">
+  <div class="login-card">
+    <h1>管理员登录</h1><div class="sub">知识管理 · 金融问数系统</div>
+    <div class="msg error" id="login-msg" style="display:none"></div>
+    <label>用户名</label><input id="login-user">
+    <label>密码</label><input id="login-pass" type="password">
+    <button onclick="doLogin()">登 录</button>
+    <div class="sub" style="margin-top:16px;text-align:center;"><a href="/static/query.html" style="color:var(--primary);cursor:pointer;">返回问数系统</a></div>
+  </div>
+</div>
+
+<div class="denied" id="page-denied" style="display:none"><i data-lucide="lock" style="width:22px;height:22px;"></i><br>仅管理员可访问此功能<br><br><a href="/static/query.html">返回问数系统</a></div>
+
+<!-- 主应用 -->
+<div class="app" id="app">
+  <header class="header">
+    <div class="logo"><i data-lucide="book-open" class="ic-logo"></i>知识管理</div>
+    <div class="user-info">
+      <span id="h-username"></span>
+      <span class="avatar" id="h-avatar" title=""></span>
+      <a class="btn" href="/static/query.html">返回问数</a>
+      <button onclick="doLogout()">退出</button>
+    </div>
+  </header>
+  <div class="main">
+    <aside class="sidebar">
+      <div class="sec-title">知识库</div>
+      <div class="nav-item active" id="nav-overview" onclick="switchPanel('overview')"><span class="ico"><i data-lucide="book-open"></i></span>知识总览</div>
+      <div class="nav-item" id="nav-graph" onclick="switchPanel('graph')"><span class="ico"><i data-lucide="brain"></i></span>知识图谱</div>
+      <div class="sec-title" id="sec-rubik">RubikSQL 自迭代</div>
+      <div class="nav-item" id="nav-review" onclick="switchPanel('review')"><span class="ico"><i data-lucide="scale"></i></span>审核中心<span class="cnt" id="review-cnt" style="display:none">0</span></div>
+      <div class="sec-title" id="sec-ext">扩充</div>
+      <div class="nav-item" id="nav-add" onclick="switchPanel('add')"><span class="ico"><i data-lucide="plus"></i></span>添加知识</div>
+      <div class="foot">待审规则通过后约 10 分钟内<br>自动注入 Agent 系统提示生效</div>
+    </aside>
+    <div class="content">
+
+      <!-- ===== 知识总览 ===== -->
+      <div class="panel active" id="panel-overview">
+        <div class="panel-title">知识总览</div>
+        <div class="panel-sub">Agent 知识查询工具的数据源:指标组(lookup_indicator_group / read_knowledge)与计算公式(lookup_formula)</div>
+        <div id="ov-groups"></div>
+        <div style="height:18px"></div>
+        <div id="ov-formulas"></div>
+      </div>
+
+      <!-- ===== 知识图谱 ===== -->
+      <div class="panel" id="panel-graph">
+        <div class="panel-title">知识图谱</div>
+        <div class="panel-sub">系统知识的结构与覆盖全景:指标组/公式/直接指标/别名/工具/RubikSQL 规则之间的关系</div>
+        <div class="gtabs">
+          <div class="gtab active" onclick="setGView('graph')"><i data-lucide="network" style="width:13px;height:13px;vertical-align:-2px;"></i> 力导向全景图</div>
+          <div class="gtab" onclick="setGView('matrix')"><i data-lucide="table-2" style="width:13px;height:13px;vertical-align:-2px;"></i> 覆盖矩阵</div>
+          <div class="gtab" onclick="setGView('timeline')"><i data-lucide="trending-up" style="width:13px;height:13px;vertical-align:-2px;"></i> 演化时间线</div>
+        </div>
+        <!-- 力导向图 -->
+        <div class="gview active" id="gv-graph">
+          <div class="graph-wrap">
+            <div id="graph-canvas"></div>
+            <div class="graph-legend" id="graph-legend"></div>
+            <div class="graph-info" id="graph-info"></div>
+          </div>
+          <div class="graph-tips">点节点查看详情;拖拽/滚轮缩放;图例可切换显隐类型</div>
+        </div>
+        <!-- 覆盖矩阵 -->
+        <div class="gview" id="gv-matrix">
+          <div class="matrix-wrap">
+            <table class="matrix" id="matrix-table"></table>
+          </div>
+          <div class="graph-tips">红色=该维度知识缺失,优先补;查询次数为从历史 SQL 提取的命中频次</div>
+        </div>
+        <!-- 演化时间线 -->
+        <div class="gview" id="gv-timeline">
+          <div class="tl-stats" id="tl-stats"></div>
+          <div class="tl-chart" id="tl-chart"></div>
+        </div>
+      </div>
+
+      <!-- ===== 审核中心 ===== -->
+      <div class="panel" id="panel-review">
+        <div class="panel-title">审核中心</div>
+        <div class="panel-sub">经验蒸馏(RubikSQL)产出的候选知识需人工审核;通过后注入 Agent 系统提示或示例库。用户反馈复核在"查询反馈"tab。</div>
+        <div class="review-toolbar">
+          <div class="tabs">
+            <div class="tab active" id="rt-pending" onclick="setRTab('pending')">待审<span class="n" id="cnt-pending"></span></div>
+            <div class="tab" id="rt-approved" onclick="setRTab('approved')">已生效<span class="n" id="cnt-approved"></span></div>
+            <div class="tab" id="rt-rejected" onclick="setRTab('rejected')">已驳回<span class="n" id="cnt-rejected"></span></div>
+          </div>
+          <span style="flex:1"></span>
+          <div id="batch-bar" style="display:flex;gap:8px;">
+            <button class="btn ghost sm" onclick="selectAll()">全选</button>
+            <button class="btn ok sm" onclick="batchReview('approved')">批量通过</button>
+            <button class="btn no sm" onclick="batchReview('rejected')">批量驳回</button>
+          </div>
+          <button class="btn ghost sm" onclick="doDistill()"><i data-lucide="pickaxe" style="width:12px;height:12px;vertical-align:-2px;"></i> 挖矿</button>
+          <button class="btn ghost sm" onclick="demoSeed()">填充演示数据</button>
+        </div>
+        <div id="review-list"></div>
+      </div>
+
+      <!-- ===== 添加知识 ===== -->
+      <div class="panel" id="panel-add">
+        <div class="panel-title">添加知识</div>
+        <div class="panel-sub">新公式写入 indicator_formula、新指标组写入知识文件,保存后 lookup 工具即时生效,无需重启</div>
+        <div class="builder-tabs">
+          <div class="builder-tab active" onclick="setBuilder('formula')"><i data-lucide="calculator" style="width:14px;height:14px;vertical-align:-2px;"></i> 新建计算公式</div>
+          <div class="builder-tab" onclick="setBuilder('group')"><i data-lucide="bar-chart-3" style="width:14px;height:14px;vertical-align:-2px;"></i> 新建指标组</div>
+        </div>
+
+        <!-- 公式构建器 -->
+        <div class="card" id="build-formula">
+          <div class="form-row">
+            <label>指标名 <span class="req">*</span></label>
+            <input type="text" id="f-term" placeholder="如:净息差">
+            <div class="hint">用户问计算指标时,formula_match 按此名及别名匹配</div>
+          </div>
+          <div class="form-row">
+            <label>别名</label>
+            <input type="text" id="f-aliases" placeholder="多个用逗号或顿号分隔,如:息差,净利差">
+          </div>
+          <div class="form-row">
+            <label>表达式 <span class="req">*</span> <span style="font-weight:400;color:#94a3b8;font-size:11px;">点选字段与运算符搭出公式</span></label>
+            <div class="expr-box" id="f-expr"></div>
+            <div class="hint" id="f-expr-hint">点下方字段插入指标原子,或点运算符;每项可点 ✕ 删除</div>
+          </div>
+          <div class="form-row">
+            <label>运算符</label>
+            <div class="op-row" id="op-row">
+              <button class="op" onclick="addOp('+')">＋ 加</button>
+              <button class="op" onclick="addOp('-')">－ 减</button>
+              <button class="op" onclick="addOp('*')">× 乘</button>
+              <button class="op" onclick="addOp('/')">÷ 除</button>
+              <button class="op" onclick="addOp('(')">（ 左括</button>
+              <button class="op" onclick="addOp(')')">） 右括</button>
+              <button class="op" onclick="addNum()">＃ 常数</button>
+              <button class="op clear" onclick="clearExpr()">清空</button>
+            </div>
+            <div class="hint">÷ 自动给被除的指标原子套 NULLIF 防除零;常数可输入任意数字(如 100 表示百分比)</div>
+          </div>
+          <div class="form-row">
+            <label>字段点选</label>
+            <div class="picker">
+              <div class="p-search"><input placeholder="搜索指标名…" oninput="renderPicker(this.value)"></div>
+              <div class="p-list" id="f-picker"></div>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>实时预览</label>
+            <div class="prev-desc" id="f-prev-desc">（还未构建表达式）</div>
+            <div class="sql-block" id="f-prev-sql" style="min-height:34px;">（生成的 SQL 模板）</div>
+            <div class="hint" id="f-comp-hint">组件指标按首次出现顺序占 {0}{1}…</div>
+          </div>
+          <div class="form-row">
+            <label>描述</label>
+            <input type="text" id="f-desc" placeholder="如:净利润÷营业收入×100%;留空则用上方自然语言预览">
+          </div>
+          <button class="btn" onclick="saveFormula()">保存公式</button>
+        </div>
+
+        <!-- 指标组构建器 -->
+        <div class="card" id="build-group" style="display:none">
+          <div class="form-row">
+            <label>组名 <span class="req">*</span></label>
+            <input type="text" id="g-name" placeholder="如:资本管理">
+            <div class="hint">成为 knowledge/indicator_groups/&lt;组名&gt;.md,Agent 通过 lookup_indicator_group 可见</div>
+          </div>
+          <div class="form-row">
+            <label>描述</label>
+            <input type="text" id="g-desc" placeholder="一句话说明该维度考察什么">
+          </div>
+          <div class="form-row">
+            <label>别名</label>
+            <input type="text" id="g-aliases" placeholder="如:资本,资本充足,资本水平">
+          </div>
+          <div class="form-row">
+            <label>包含指标 <span class="req">*</span></label>
+            <div class="picker">
+              <div class="p-search"><input placeholder="搜索指标名…" oninput="renderGPicker(this.value)"></div>
+              <div class="p-list" id="g-picker"></div>
+            </div>
+            <div class="sel-inds" id="g-selected"></div>
+          </div>
+          <button class="btn" onclick="saveGroup()">保存指标组</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/vendor/vis-network.min.js"></script>
+<script src="/static/vendor/lucide.min.js" onload="try{lucide.createIcons()}catch(e){}"></script>
+<script>
+// ============ 基础 ============
+let token = localStorage.getItem('finance_token') || '';
+let userInfo = null;
+let INDICATORS = [];        // index_list 全量指标名
+let fTokens = [];             // 公式构建器 token 流(字段原子+运算符+常数)
+let gSel = [];                 // 指标组已选指标(无序)
+let reviewTab = 'pending';
+let reviewData = [];
+let selected = new Set();
+let groupData = [], formulaData = [];
+let IS_ADMIN = false;
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+// 渲染后统一调用:把所有 <i data-lucide> 替换为 svg 图标
+function refreshIcons() { try { if (window.lucide) lucide.createIcons(); } catch(e) {} }
+// JS 字符串上下文转义(内嵌 onclick 属性时防止单引号/反斜杠断串)
+function jsq(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast ' + (type || 'info'); t.style.display = 'block';
+  clearTimeout(t._tm); t._tm = setTimeout(() => t.style.display = 'none', 2600);
+}
+async function api(path, opts) {
+  const r = await fetch(path, Object.assign({ headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } }, opts || {}));
+  if (r.status === 401) { location.reload(); throw new Error('登录过期'); }
+  return r.json();
+}
+
+// ============ 鉴权(仿 audit.html) ============
+async function init() {
+  if (!token) return showLogin();
+  try {
+    const d = await api('/api/auth/me');
+    if (!d.data) return showLogin();
+    userInfo = d.data.user;
+    IS_ADMIN = userInfo.username === 'admin_total';
+    // 非管理员:ban 审核中心 + 添加知识(只留知识总览 + 知识图谱只读)
+    if (!IS_ADMIN) {
+      ['nav-review', 'nav-add', 'sec-rubik', 'sec-ext'].forEach(id => {
+        const e = document.getElementById(id); if (e) e.style.display = 'none';
+      });
+      // 图谱:隐藏矩阵/时间线子视图(依赖 admin-only 的 stats)
+      document.querySelectorAll('.gtab').forEach((t, i) => { if (i > 0) t.style.display = 'none'; });
+    }
+    document.getElementById('h-username').textContent = userInfo.username;
+    // 头像:管理员主色蓝,悬停显示身份(行·岗),与用户真实身份匹配
+    const av = document.getElementById('h-avatar');
+    av.textContent = (userInfo.username || '?').charAt(0).toUpperCase();
+    av.classList.toggle('admin', IS_ADMIN);
+    av.title = `${userInfo.org_name || '未知机构'} · ${userInfo.position || '未知岗位'}`
+      + (IS_ADMIN ? '(管理员)' : '');
+    document.getElementById('app').classList.add('active');
+    loadOverview(); loadIndicators();
+    if (IS_ADMIN) { loadCounts(); loadReview(); }
+  } catch (e) { showLogin(); }
+}
+function showLogin() { document.getElementById('page-login').style.display = 'flex'; }
+async function doLogin() {
+  const u = document.getElementById('login-user').value.trim(), p = document.getElementById('login-pass').value.trim();
+  if (!u || !p) return;
+  const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+  const d = await r.json();
+  if (d.code !== 0) { const m = document.getElementById('login-msg'); m.style.display = 'block'; m.textContent = d.message; return; }
+  localStorage.setItem('finance_token', d.data.token); location.reload();
+}
+function doLogout() { localStorage.removeItem('finance_token'); location.reload(); }
+
+// ============ 侧栏切换 ============
+function switchPanel(name) {
+  ['overview', 'graph', 'review', 'add'].forEach(n => {
+    document.getElementById('panel-' + n).classList.toggle('active', n === name);
+    document.getElementById('nav-' + n).classList.toggle('active', n === name);
+  });
+  if (name === 'graph') loadGraph();
+}
+
+// ============ SQL 高亮 ============
+function hlSQL(sql) {
+  let s = esc(sql);
+  s = s.replace(/'([^']*)'/g, '<span class="str">\'$1\'</span>');
+  s = s.replace(/\b(SELECT|FROM|WHERE|AND|OR|JOIN|LEFT|INNER|ON|GROUP BY|ORDER BY|AS|CASE|WHEN|THEN|ELSE|END|IN|BETWEEN|DESC|ASC|WITH|OVER|PARTITION BY|RANK|DISTINCT|LIMIT)\b/gi, '<span class="kw">$1</span>');
+  s = s.replace(/\b(SUM|AVG|COUNT|MAX|MIN|NULLIF|COALESCE|ROUND)\b/g, '<span class="fn">$1</span>');
+  s = s.replace(/\b(\d+\.?\d*)\b/g, '<span class="num">$1</span>');
+  return s;
+}
+
+// ============ 知识总览 ============
+async function loadOverview() {
+  const [groups, formulas] = await Promise.all([api('/api/knowledge/groups'), api('/api/knowledge/formulas')]);
+  groupData = groups; formulaData = formulas;
+  // 指标组
+  let h = '<div style="font-size:14px;font-weight:700;margin-bottom:10px;">指标组(' + groups.length + ')</div><div class="grid2">';
+  groups.forEach(g => {
+    h += `<div class="card group-card"><h3><i data-lucide="folder" style="width:15px;height:15px;color:var(--primary);"></i> ${esc(g.name)}</h3>
+      <div class="desc">${esc(g.description)}</div>
+      <div class="kv">别名:<b>${esc(g.aliases) || '—'}</b> · ${g.indicators.length} 个指标</div>
+      <div class="ind-list">${g.indicators.map(i => `<span class="chip blue">${esc(i)}</span>`).join('')}</div></div>`;
+  });
+  h += '</div>';
+  document.getElementById('ov-groups').innerHTML = h;
+  // 计算公式
+  let f = '<div style="font-size:14px;font-weight:700;margin:6px 0 10px;">计算公式(' + formulas.length + ')</div>';
+  formulas.forEach(x => {
+    f += `<div class="card formula-card"><div class="f-head"><span class="f-term">${esc(x.term)}</span>
+      ${x.aliases.map(a => `<span class="chip">${esc(a)}</span>`).join('')}
+      <span class="meta-line">组件:${esc((x.index_names || []).join(' + '))}</span></div>
+      <div class="f-desc">${esc(x.description)}</div>
+      <div class="sql-block">${hlSQL(x.sql_template)}</div></div>`;
+  });
+  document.getElementById('ov-formulas').innerHTML = f;
+}
+
+// ============ 审核中心 ============
+async function loadCounts() {
+  const [p, a, r] = await Promise.all(['pending', 'approved', 'rejected'].map(s =>
+    api('/api/knowledge/review?status=' + s)));
+  document.getElementById('cnt-pending').textContent = p.length;
+  document.getElementById('cnt-approved').textContent = a.length;
+  document.getElementById('cnt-rejected').textContent = r.length;
+  const badge = document.getElementById('review-cnt');
+  badge.textContent = p.length; badge.style.display = p.length ? 'flex' : 'none';
+}
+function setRTab(t) { reviewTab = t; selected.clear();
+  ['pending', 'approved', 'rejected'].forEach(x => { const e = document.getElementById('rt-' + x); if (e) e.classList.toggle('active', x === t); });
+  document.getElementById('batch-bar').style.display = t === 'pending' ? 'flex' : 'none';
+  loadReview();
+}
+
+// 待审:用户反馈查询(在前)+规则候选(在后)合并渲染
+async function loadReview() {
+  const el = document.getElementById('review-list');
+  let cards = [];
+  if (reviewTab === 'pending') {
+    const [queries, rules] = await Promise.all([
+      api('/api/knowledge/query-review?status=pending').catch(() => []),
+      api('/api/knowledge/review?status=pending')
+    ]);
+    reviewData = rules;
+    if (!queries.length && !rules.length) {
+      el.innerHTML = `<div class="card empty-box"><div class="ico"><i data-lucide="inbox" style="width:32px;height:32px;"></i></div>暂无待审条目 — 用户反馈或点「挖矿」积累候选</div>`;
+      refreshIcons();
+      return;
+    }
+    cards = queries.map(q => qCardHTML(q)).concat(rules.map(r => cardHTML(r)));
+  } else {
+    const data = await api('/api/knowledge/review?status=' + reviewTab);
+    reviewData = data;
+    if (!data.length) {
+      el.innerHTML = `<div class="card empty-box"><div class="ico"><i data-lucide="inbox" style="width:32px;height:32px;"></i></div>暂无记录</div>`;
+      refreshIcons();
+      return;
+    }
+    cards = data.map(r => cardHTML(r));
+  }
+  el.innerHTML = cards.join('');
+  refreshIcons();
+}
+
+// 用户反馈卡片:问题+SQL只读+工具链+反馈+通过/驳回/修改(↔完成)
+function qCardHTML(q) {
+  return `<div class="card review-card" id="qc-${q.id}"><div class="body">
+    <div class="rc-head">
+      <span class="type-badge tool_choice">用户反馈</span>
+      <span class="meta-line">${esc(q.username||'')} · ${esc((q.time||'').slice(0,16))} · #${q.id}</span>
+    </div>
+    <div class="q-line"><i data-lucide="circle-help" style="width:14px;height:14px;vertical-align:-2px;color:var(--primary);"></i> ${esc(q.question)}</div>
+    ${q.sql ? `<div class="sql-block">${hlSQL(q.sql)}</div>` : ''}
+    ${q.tool_trace ? `<div class="kv">工具调用链:<b>${esc(q.tool_trace)}</b></div>` : ''}
+    ${q.feedback ? `<div class="q-line" style="color:#c2410c;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:8px 12px;margin-top:8px;"><i data-lucide="message-square-plus" style="width:14px;height:14px;vertical-align:-2px;"></i> 用户反馈: ${esc(q.feedback)}</div>` : ''}
+    <div class="rc-actions">
+      <button class="btn sm ok" onclick="qReview(${q.id}, 'correct')"><i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;"></i> 通过</button>
+      <button class="btn sm no" onclick="qReview(${q.id}, 'problem')"><i data-lucide="x" style="width:12px;height:12px;vertical-align:-2px;"></i> 驳回</button>
+      <button class="btn sm ghost" id="qedit-${q.id}" onclick="qToggleEdit(${q.id})"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-2px;"></i> 修改</button>
+    </div>
+    <div class="edit-area" id="qea-${q.id}" style="display:none;margin-top:10px;">
+      <textarea id="qeat-${q.id}" placeholder="补充问题描述" style="width:100%;min-height:70px;border:1px solid var(--primary-light);border-radius:8px;padding:10px;font-size:13px;outline:none;background:#f8faff;font-family:inherit;">${esc(q.feedback||'')}</textarea>
+    </div>
+  </div></div>`;
+}
+function qToggleEdit(qid) {
+  const ea = document.getElementById('qea-' + qid);
+  const btn = document.getElementById('qedit-' + qid);
+  if (!ea || !btn) return;
+  const editing = ea.style.display === 'block';
+  ea.style.display = editing ? 'none' : 'block';
+  btn.innerHTML = editing
+    ? '<i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-2px;"></i> 修改'
+    : '<i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;"></i> 完成';
+  refreshIcons();
+}
+async function qReview(qid, status) {
+  const note = (document.getElementById('qeat-' + qid) || {}).value || '';
+  if (status === 'problem' && !note.trim()) { toast('驳回需先点「修改」填写问题描述', 'err'); return; }
+  await api('/api/knowledge/query-review/' + qid, { method: 'POST', body: JSON.stringify({ status, note }) });
+  toast(status === 'correct' ? '已通过,SQL 回灌范例池' : '已驳回,待 agent 分析', 'ok');
+  loadReview();
+}
+function cardHTML(r) {
+  const cb = reviewTab === 'pending' ? `<div class="cb"><input type="checkbox" ${selected.has(r.id) ? 'checked' : ''} onchange="toggleSel(${r.id}, this.checked)"></div>` : '';
+  const cls = reviewTab === 'approved' ? ' done-app' : (reviewTab === 'rejected' ? ' done-rej' : '');
+  return `<div class="card review-card${cls}" id="rc-${r.id}">${cb}<div class="body">
+    <div class="rc-head">
+      <span class="type-badge ${r.type}">${TYPE_NAMES[r.type] || r.type}</span>
+      <span class="meta-line">证据 ${r.evidence_count} 条 · ${esc(r.source)} · ${esc((r.time || '').slice(0, 16))}</span>
+    </div>
+    ${bodyHTML(r)}
+    ${actionsHTML(r)}
+    ${reviewTab !== 'pending' ? '' : `<div class="edit-area" id="ea-${r.id}" style="display:none">
+      <textarea id="eat-${r.id}">${esc(JSON.stringify(r.parsed || r.action, null, 2))}</textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn sm ok" onclick="saveEdit(${r.id}, 'approved')">保存并通过</button>
+        <button class="btn sm ghost" onclick="document.getElementById('ea-${r.id}').style.display='none'">取消</button>
+      </div></div>`}
+  </div></div>`;
+}
+const TYPE_NAMES = { fewshot: '问答范例', alias: '别名映射', tool_choice: '工具选择', avoidance: '失败规避' };
+
+function bodyHTML(r) {
+  const p = r.parsed;
+  if (r.type === 'alias' && p) {
+    let h = `<div class="alias-viz"><span class="from">${esc(p.alias || r.trigger)}</span><span class="arrow">⟶</span><span class="to">${esc(p.indicator || p.action)}</span></div>`;
+    if ((p.samples || []).length) {
+      h += `<div class="q-line">样例问句:</div><div>${p.samples.map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div>`;
+    }
+    return h;
+  }
+  if (r.type === 'tool_choice' && p) {
+    return `<div class="tool-viz"><span>问句含「<b>${esc(r.trigger)}</b>」</span><span class="arrow" style="color:#5eead4;">⟶</span><span class="tool-chip">${esc(p.tool || '')}</span>${p.success_count ? `<span class="meta-line">成功 ${p.success_count} 次</span>` : ''}</div>
+      ${p.hint ? `<div class="hint" style="font-size:12px;">${esc(p.hint)}</div>` : ''}`;
+  }
+  if (r.type === 'avoidance' && p) {
+    return `<div class="q-line">失败模式:${esc(p.pattern || r.trigger)}</div>
+      ${p.bad_sql ? `<div class="sql-block diff-del">${hlSQL(p.bad_sql)}</div>` : ''}
+      ${p.good_sql ? `<div style="font-size:11px;color:var(--success);margin:6px 0 2px;">↓ 纠正为</div><div class="sql-block diff-add">${hlSQL(p.good_sql)}</div>` : ''}`;
+  }
+  // fewshot / 兜底
+  const q = p && p.question ? p.question : r.trigger;
+  const sql = p && p.sql ? p.sql : '';
+  return `<div class="q-line"><i data-lucide="circle-help" style="width:14px;height:14px;vertical-align:-2px;color:var(--primary);"></i> ${esc(q)}</div>${sql ? `<div class="sql-block">${hlSQL(sql)}</div>` : (p ? '' : `<div class="sql-block">${esc(r.action)}</div>`)}`;
+}
+function actionsHTML(r) {
+  if (reviewTab !== 'pending')
+    return `<div class="rc-actions"><button class="btn sm ghost" onclick="reReview(${r.id}, '${reviewTab === 'approved' ? 'rejected' : 'approved'}')">${reviewTab === 'approved' ? '撤销并驳回' : '撤销并通过'}</button></div>`;
+  return `<div class="rc-actions">
+    <button class="btn sm ok" onclick="reviewOne(${r.id}, 'approved')"><i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;"></i> 通过</button>
+    <button class="btn sm no" onclick="reviewOne(${r.id}, 'rejected')"><i data-lucide="x" style="width:12px;height:12px;vertical-align:-2px;"></i> 驳回</button>
+    <button class="btn sm ghost" onclick="toggleEdit(${r.id})"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-2px;"></i> 编辑</button>
+  </div>`;
+}
+function toggleSel(id, on) { on ? selected.add(id) : selected.delete(id); }
+function selectAll() {
+  const boxes = document.querySelectorAll('#review-list input[type=checkbox]');
+  const all = boxes.length && [...boxes].every(b => b.checked);
+  boxes.forEach(b => { b.checked = !all; });
+  selected.clear();
+  if (!all) reviewData.forEach(r => selected.add(r.id));
+}
+function toggleEdit(id) {
+  const ea = document.getElementById('ea-' + id);
+  ea.style.display = ea.style.display === 'none' ? 'block' : 'none';
+}
+async function reviewOne(id, status) {
+  await api('/api/knowledge/review/' + id, { method: 'POST', body: JSON.stringify({ status }) });
+  toast(status === 'approved' ? '已通过,约 10 分钟内生效' : '已驳回', status === 'approved' ? 'ok' : 'info');
+  refreshReview();
+}
+async function saveEdit(id, status) {
+  let raw = document.getElementById('eat-' + id).value;
+  try { JSON.parse(raw); } catch (e) { return toast('JSON 格式错误,请检查', 'err'); }
+  await api('/api/knowledge/review/' + id, { method: 'POST', body: JSON.stringify({ status, action: raw }) });
+  toast('已保存编辑并' + (status === 'approved' ? '通过' : '驳回'), 'ok');
+  refreshReview();
+}
+async function reReview(id, status) { await reviewOne(id, status); }
+async function batchReview(status) {
+  if (!selected.size) return toast('请先勾选条目', 'err');
+  await api('/api/knowledge/review/batch', { method: 'POST', body: JSON.stringify({ ids: [...selected], status }) });
+  toast(`批量${status === 'approved' ? '通过' : '驳回'} ${selected.size} 条`, 'ok');
+  selected.clear(); refreshReview();
+}
+async function doDistill() {
+  const d = await api('/api/knowledge/distill', { method: 'POST' });
+  toast(d.msg || ('挖出 ' + d.new + ' 条'), d.new > 0 ? 'ok' : 'info');
+  refreshReview();
+}
+async function demoSeed() {
+  const d = await api('/api/knowledge/demo-seed', { method: 'POST' });
+  toast(d.msg, d.ok ? 'ok' : 'info');
+  refreshReview();
+}
+function refreshReview() { loadCounts(); loadReview(); }
+
+// ============ 添加知识 ============
+async function loadIndicators() {
+  try { INDICATORS = await api('/api/knowledge/indicators'); } catch (e) { INDICATORS = []; }
+  renderPicker(''); renderGPicker('');
+}
+function setBuilder(b) {
+  document.getElementById('build-formula').style.display = b === 'formula' ? 'block' : 'none';
+  document.getElementById('build-group').style.display = b === 'group' ? 'block' : 'none';
+  document.querySelectorAll('.builder-tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (b === 'formula')));
+}
+// ---- 积木式公式构建器:token 流(字段原子 + 运算符 + 常数) ----
+// 每个 token: {type:'ind', name} | {type:'num', val} | {type:'op', sym}
+const OP_SYM = { '+': '＋', '-': '－', '*': '×', '/': '÷', '(': '（', ')': '）' };
+
+function addOp(sym) { fTokens.push({ type: 'op', sym }); renderExpr(); }
+function addInd(name) { fTokens.push({ type: 'ind', name }); renderPicker(curFSearch()); renderExpr(); }
+function addNum() {
+  const v = prompt('输入常数(数字),如 100 表示百分比:', '100');
+  if (v == null) return;
+  if (v.trim() === '' || isNaN(Number(v))) return toast('请输入有效数字', 'err');
+  fTokens.push({ type: 'num', val: v.trim() }); renderExpr();
+}
+function delToken(i) { fTokens.splice(i, 1); renderPicker(curFSearch()); renderExpr(); }
+function clearExpr() { fTokens = []; renderPicker(curFSearch()); renderExpr(); }
+function curFSearch() {
+  const inp = document.querySelector('#f-picker') && document.querySelector('#f-picker').closest('.picker').querySelector('.p-search input');
+  return inp ? inp.value : '';
+}
+// 指标在 token 流里的首次出现序号(即 {n} 占位符),用于表达式区直观展示
+function firstSlot(name, upto) {
+  const seen = {}; let n = 0;
+  for (let k = 0; k <= upto; k++) {
+    const t = fTokens[k];
+    if (t && t.type === 'ind' && !(t.name in seen)) { seen[t.name] = n; n++; }
+  }
+  return seen[name];
+}
+function renderExpr() {
+  const el = document.getElementById('f-expr');
+  el.innerHTML = fTokens.map((t, i) => {
+    if (t.type === 'ind')
+      return `<span class="tok ind"><span class="slot">{${firstSlot(t.name, i)}}</span>${esc(t.name)}<span class="x" onclick="delToken(${i})"><i data-lucide="x"></i></span></span>`;
+    if (t.type === 'num')
+      return `<span class="tok num">${esc(t.val)}<span class="x" onclick="delToken(${i})"><i data-lucide="x"></i></span></span>`;
+    return `<span class="tok op">${OP_SYM[t.sym] || t.sym}<span class="x" onclick="delToken(${i})"><i data-lucide="x"></i></span></span>`;
+  }).join('');
+  const gen = genExpr();
+  document.getElementById('f-prev-desc').textContent = gen.desc || '（还未构建表达式）';
+  document.getElementById('f-prev-sql').innerHTML = gen.sql ? hlSQL(gen.sql) : '（生成的 SQL 模板）';
+  document.getElementById('f-comp-hint').textContent = gen.index_names.length
+    ? '组件顺序:' + gen.index_names.map((_, i) => '{' + i + '}').join(' ') + '  →  ' + gen.index_names.join('、')
+    : '组件指标按首次出现顺序占 {0}{1}…';
+}
+function genExpr() {
+  // 1. 分配占位符 slot:指标按首次出现编号,同指标复用同 slot
+  const slotMap = {}, index_names = [];
+  fTokens.forEach(t => {
+    if (t.type === 'ind' && !(t.name in slotMap)) { slotMap[t.name] = index_names.length; index_names.push(t.name); }
+  });
+  // 2. 展开原子:指标→SUM(CASE WHEN index_name='{n}' THEN index_value END);常数→数字;运算符→符号
+  const parts = fTokens.map(t => {
+    if (t.type === 'ind') return `SUM(CASE WHEN index_name='{${slotMap[t.name]}}' THEN index_value END)`;
+    if (t.type === 'num') return String(t.val);
+    return t.sym;
+  });
+  let sql = parts.join(' ');
+  // 3. ÷ 安全化:对指标原子除数套 NULLIF(...,0) 防除零;常数除数不动(用户自担)
+  sql = sql.replace(/\/\s*(SUM\(CASE[\s\S]*?END\))/g, '/ NULLIF($1, 0)');
+  // 4. 自然语言预览(全角运算符)
+  const desc = fTokens.map(t => {
+    if (t.type === 'ind') return t.name;
+    if (t.type === 'num') return t.val;
+    return OP_SYM[t.sym] || t.sym;
+  }).join(' ');
+  return { sql, index_names, desc };
+}
+function renderPicker(q) {
+  q = (q || '').trim();
+  const inExpr = name => fTokens.some(tk => tk.type === 'ind' && tk.name === name);
+  const list = INDICATORS.filter(i => !q || i.includes(q)).slice(0, 120);
+  document.getElementById('f-picker').innerHTML = list.map(i =>
+    `<div class="p-item" onclick="addInd('${jsq(i)}')"><input type="checkbox" ${inExpr(i) ? 'checked' : ''} readonly>${esc(i)}${inExpr(i) ? '<span style="margin-left:auto;font-size:11px;color:var(--primary);">已入式</span>' : ''}</div>`).join('')
+    || '<div style="padding:10px;font-size:12px;color:#94a3b8;">无匹配指标</div>';
+}
+async function saveFormula() {
+  const term = document.getElementById('f-term').value.trim();
+  if (!term) return toast('指标名不可为空', 'err');
+  if (!fTokens.length) return toast('请先用运算符和字段构建表达式', 'err');
+  const gen = genExpr();
+  if (!gen.sql) return toast('表达式为空', 'err');
+  const aliases = document.getElementById('f-aliases').value.split(/[,，、\s]+/).filter(Boolean);
+  const desc = document.getElementById('f-desc').value.trim() || gen.desc;
+  await api('/api/knowledge/formula', { method: 'POST', body: JSON.stringify({ term, aliases, index_names: gen.index_names, sql_template: gen.sql, description: desc }) });
+  toast(`公式「${term}」已保存,lookup_formula 即时生效`, 'ok');
+  document.getElementById('f-term').value = ''; document.getElementById('f-aliases').value = ''; document.getElementById('f-desc').value = '';
+  fTokens = []; renderExpr(); renderPicker('');
+  loadOverview();
+}
+function renderGPicker(q) {
+  q = (q || '').trim();
+  const list = INDICATORS.filter(i => !q || i.includes(q)).slice(0, 120);
+  document.getElementById('g-picker').innerHTML = list.map(i =>
+    `<div class="p-item" onclick="pickG('${jsq(i)}')"><input type="checkbox" ${gSel.includes(i) ? 'checked' : ''} readonly>${esc(i)}</div>`).join('')
+    || '<div style="padding:10px;font-size:12px;color:#94a3b8;">无匹配指标</div>';
+}
+function pickG(name) {
+  const i = gSel.indexOf(name);
+  if (i >= 0) gSel.splice(i, 1); else gSel.push(name);
+  const q = document.querySelector('#g-picker').closest('.picker').querySelector('.p-search input').value;
+  renderGPicker(q); renderGSel();
+}
+function renderGSel() {
+  document.getElementById('g-selected').innerHTML = gSel.map(n =>
+    `<span class="chip">${esc(n)}<span class="x" onclick="pickG('${jsq(n)}')"><i data-lucide="x"></i></span></span>`).join('')
+    || '<span class="hint" style="margin-top:6px;">未选择指标</span>';
+}
+async function saveGroup() {
+  const name = document.getElementById('g-name').value.trim();
+  if (!name) return toast('组名不可为空', 'err');
+  if (!gSel.length) return toast('请至少选择 1 个指标', 'err');
+  const aliases = document.getElementById('g-aliases').value.split(/[,，、\s]+/).filter(Boolean);
+  await api('/api/knowledge/group', { method: 'POST', body: JSON.stringify({ name, description: document.getElementById('g-desc').value.trim(), aliases, indicators: gSel }) });
+  toast(`指标组「${name}」已保存,lookup 即时生效`, 'ok');
+  document.getElementById('g-name').value = ''; document.getElementById('g-desc').value = ''; document.getElementById('g-aliases').value = '';
+  gSel = []; renderGSel();
+  loadOverview();
+}
+
+// ============ 知识图谱 ============
+let gNetwork = null, gStats = null, gRules = [];
+const TOOLS = ['lookup_indicator_group', 'read_knowledge', 'lookup_formula',
+               'query_finance_db', 'query_macro_indicator', 'search_financial_news'];
+const NODE_STYLE = {
+  group:    { c: '#1e40af', shape: 'box' },
+  formula:  { c: '#7c3aed', shape: 'dot' },
+  indicator:{ c: '#059669', shape: 'dot' },
+  alias:    { c: '#ea580c', shape: 'dot' },
+  tool:     { c: '#0891b2', shape: 'box' },
+  rule_appr:{ c: '#16a34a', shape: 'triangle' },
+  rule_pend:{ c: '#dc2626', shape: 'triangle' },
+};
+const SHOW_TYPES = { group: true, formula: true, indicator: true, alias: false, tool: true, rule: true };
+
+function setGView(v) {
+  ['graph', 'matrix', 'timeline'].forEach(x => {
+    document.getElementById('gv-' + x).classList.toggle('active', x === v);
+  });
+  document.querySelectorAll('.gtab').forEach((t, i) => {
+    t.classList.toggle('active', ['graph', 'matrix', 'timeline'].indexOf(v) === i);
+  });
+  if (v === 'matrix') renderMatrix();
+  if (v === 'timeline') renderTimeline();
+}
+
+async function loadGraph() {
+  // 复用已加载的 groupData/formulaData/INDICATORS;管理员补取规则 + stats
+  if (IS_ADMIN) {
+    const [ap, pe, st] = await Promise.all([
+      api('/api/knowledge/review?status=approved'),
+      api('/api/knowledge/review?status=pending'),
+      api('/api/knowledge/stats'),
+    ]);
+    gRules = [...ap, ...pe];
+    gStats = st;
+  } else {
+    // 普通用户:只读知识结构,不拉 rules/stats(admin-only),力导向图无规则节点
+    gRules = [];
+    gStats = null;
+  }
+  renderGraphLegend();
+  renderGraph();
+  if (IS_ADMIN) { renderMatrix(); renderTimeline(); }
+}
+
+function renderGraphLegend() {
+  const items = [
+    { k: 'group', l: '指标组' }, { k: 'formula', l: '计算公式' },
+    { k: 'indicator', l: '直接指标' }, { k: 'alias', l: '别名' },
+    { k: 'tool', l: '工具' }, { k: 'rule', l: '规则' },
+  ];
+  document.getElementById('graph-legend').innerHTML = items.map(i => {
+    const st = i.k === 'rule'
+      ? { c: '#dc2626' }
+      : NODE_STYLE[i.k === 'rule' ? 'rule_pend' : i.k];
+    const checked = i.k === 'rule' ? SHOW_TYPES.rule : SHOW_TYPES[i.k];
+    const dot = i.k === 'rule'
+      ? `<span class="lg-dot" style="background:#16a34a"></span><span class="lg-dot" style="background:#dc2626;margin-left:-4px"></span>`
+      : `<span class="lg-dot" style="background:${st.c}"></span>`;
+    return `<div class="lg-item" onclick="toggleType('${i.k}')">
+      <input type="checkbox" class="lg-cb" ${checked ? 'checked' : ''}>${dot}${i.l}</div>`;
+  }).join('');
+}
+
+function toggleType(k) {
+  SHOW_TYPES[k] = !SHOW_TYPES[k];
+  renderGraphLegend();
+  renderGraph();
+}
+
+function buildGraphData() {
+  const nodes = [], edges = [];
+  const have = new Set();
+  const addN = (id, label, type, extra = {}) => {
+    if (have.has(id)) return;
+    have.add(id);
+    const st = NODE_STYLE[type] || NODE_STYLE.indicator;
+    const show = type === 'alias' ? SHOW_TYPES.alias
+      : (type === 'rule_appr' || type === 'rule_pend') ? SHOW_TYPES.rule
+      : SHOW_TYPES[type];
+    nodes.push({ id, label, group: type, color: { background: st.c, border: st.c },
+                 shape: st.shape, hidden: !show, ...extra });
+  };
+  const addE = (f, t, label) => {
+    const show = nodes.find(n => n.id === f && n.hidden) || nodes.find(n => n.id === t && n.hidden);
+    edges.push({ from: f, to: t, label, hidden: !!(show) });
+  };
+  // 组
+  (groupData || []).forEach(g => addN('g:' + g.name, g.name, 'group'));
+  // 公式
+  (formulaData || []).forEach(f => addN('f:' + f.term, f.term, 'formula'));
+  // 直接指标
+  (INDICATORS || []).forEach(i => addN('i:' + i, i, 'indicator'));
+  // 工具
+  TOOLS.forEach(t => addN('t:' + t, t, 'tool'));
+  // 边:组→包含→指标
+  (groupData || []).forEach(g => (g.indicators || []).forEach(ind => {
+    addN('i:' + ind, ind, 'indicator');
+    addE('g:' + g.name, 'i:' + ind, '包含');
+  }));
+  // 边:公式→组成→指标
+  (formulaData || []).forEach(f => (f.index_names || []).forEach(c => {
+    addN('i:' + c, c, 'indicator');
+    addE('f:' + f.term, 'i:' + c, '组成');
+  }));
+  // 别名节点 + 边(公式别名 + 组别名)
+  (formulaData || []).forEach(f => (f.aliases || []).forEach(a => {
+    addN('a:' + a, a, 'alias');
+    addE('f:' + f.term, 'a:' + a, '别名');
+  }));
+  (groupData || []).forEach(g => {
+    (g.aliases || '').split(/[、,，]/).map(s => s.trim()).filter(Boolean).forEach(a => {
+      addN('a:' + a, a, 'alias');
+      addE('g:' + g.name, 'a:' + a, '别名');
+    });
+  });
+  // 规则节点 + 边
+  gRules.forEach(r => {
+    const t = r.status === 'approved' ? 'rule_appr' : 'rule_pend';
+    const lbl = (r.type || '').slice(0, 4);
+    addN('r:' + r.id, lbl, t, { _rule: r });
+    const p = r.parsed || {};
+    if (r.type === 'alias' && p.indicator) {
+      addN('i:' + p.indicator, p.indicator, 'indicator');
+      addE('r:' + r.id, 'i:' + p.indicator, '映射');
+    } else if (r.type === 'tool_choice' && p.tool) {
+      addN('t:' + p.tool, p.tool, 'tool');
+      addE('r:' + r.id, 't:' + p.tool, '工具');
+    } else if (r.type === 'alias' && p.alias) {
+      addN('a:' + p.alias, p.alias, 'alias');
+      addE('r:' + r.id, 'a:' + p.alias, '映射');
+    }
+  });
+  // 边显隐:两端都可见才显示
+  edges.forEach(e => {
+    const fn = nodes.find(n => n.id === e.from), tn = nodes.find(n => n.id === e.to);
+    e.hidden = !!(fn && fn.hidden) || !!(tn && tn.hidden);
+  });
+  return { nodes, edges };
+}
+
+function renderGraph() {
+  if (typeof vis === 'undefined') {
+    document.getElementById('graph-canvas').innerHTML =
+      '<div style="padding:40px;text-align:center;color:#94a3b8;">vis-network 库未加载(检查 /static/vendor/vis-network.min.js)</div>';
+    return;
+  }
+  const { nodes, edges } = buildGraphData();
+  const data = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+  const options = {
+    nodes: { font: { size: 13, face: 'sans-serif' }, borderWidth: 1 },
+    edges: { arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+             color: { color: '#cbd5e1', opacity: 0.5 }, font: { size: 9, color: '#94a3b8' },
+             smooth: { type: 'continuous' } },
+    physics: { solver: 'barnesHut', barnesHut: { gravitationalConstant: -9000, springLength: 120 },
+               stabilization: { iterations: 120 } },
+    interaction: { hover: true, tooltipDelay: 0, navigationButtons: false },
+  };
+  if (gNetwork) gNetwork.destroy();
+  gNetwork = new vis.Network(document.getElementById('graph-canvas'), data, options);
+  gNetwork.on('click', params => {
+    if (params.nodes.length) showNodeInfo(params.nodes[0], nodes);
+    else document.getElementById('graph-info').style.display = 'none';
+  });
+}
+
+function showNodeInfo(id, nodes) {
+  const n = nodes.find(x => x.id === id);
+  if (!n) return;
+  const el = document.getElementById('graph-info');
+  const typeLabel = { group: '指标组', formula: '计算公式', indicator: '直接指标',
+                      alias: '别名', tool: '工具', rule_appr: '规则(已生效)', rule_pend: '规则(待审)' }[n.group] || n.group;
+  let rows = `<div class="gi-row">类型:${typeLabel}</div>`;
+  if (n._rule) {
+    const r = n._rule;
+    rows += `<div class="gi-row">规则类型:${esc(r.type)}</div>`;
+    rows += `<div class="gi-row">触发:${esc(r.trigger)}</div>`;
+    rows += `<div class="gi-row">置信度:${r.confidence}</div>`;
+    if (r.parsed) rows += `<div class="gi-row" style="word-break:break-all;">${esc(JSON.stringify(r.parsed, null, 1).slice(0, 200))}</div>`;
+  }
+  el.innerHTML = `<div class="gi-title">${esc(n.label)}</div>${rows}`;
+  el.style.display = 'block';
+}
+
+function renderMatrix() {
+  if (!gStats) return;
+  const cov = gStats.coverage || [];
+  const maxQ = Math.max(1, ...cov.map(c => c.queried || 0));
+  const cols = [
+    { k: 'in_formula', l: '公式组件', t: 'bool' },
+    { k: 'group', l: '指标组', t: 'val' },
+    { k: 'aliases', l: '别名数', t: 'num' },
+    { k: 'queried', l: '查询次数', t: 'num' },
+  ];
+  let h = '<thead><tr><th>指标</th>' + cols.map(c => `<th>${c.l}</th>`).join('') + '</tr></thead><tbody>';
+  cov.forEach(c => {
+    h += `<tr><td>${esc(c.indicator)}</td>`;
+    cols.forEach(col => {
+      const v = c[col.k];
+      if (col.t === 'bool')
+        h += `<td class="${v ? 'mc-yes' : 'mc-no'}">${v ? '✓' : '✗'}</td>`;
+      else if (col.k === 'queried') {
+        const w = Math.round((v || 0) / maxQ * 100);
+        h += `<td><span class="mc-bar" style="width:${w}px"></span><span class="mc-num">${v || 0}</span></td>`;
+      } else if (col.k === 'group')
+        h += `<td class="${v ? 'mc-yes' : 'mc-no'}">${v ? esc(v) : '—'}</td>`;
+      else
+        h += `<td class="mc-num">${v || 0}</td>`;
+    });
+    h += '</tr>';
+  });
+  h += '</tbody>';
+  document.getElementById('matrix-table').innerHTML = h;
+}
+
+function renderTimeline() {
+  if (!gStats) return;
+  const t = gStats;
+  // 统计卡片
+  const rs = t.rule_status || {};
+  const sc = document.getElementById('tl-stats');
+  const cards = [
+    { n: t.totals ? t.totals.experience : 0, l: '经验记录总数' },
+    { n: rs.pending || 0, l: '待审规则' },
+    { n: rs.approved || 0, l: '已生效规则' },
+    { n: rs.rejected || 0, l: '已驳回规则' },
+    { n: (t.rule_types || {}).avoidance || 0, l: '规避规则' },
+  ];
+  sc.innerHTML = cards.map(c => `<div class="tl-stat"><div class="n">${c.n}</div><div class="l">${c.l}</div></div>`).join('');
+  // 时间线柱状图
+  const tl = (t.timeline || []).slice(-20);
+  const maxT = Math.max(1, ...tl.map(d => d.total || 0));
+  const el = document.getElementById('tl-chart');
+  if (!tl.length) { el.innerHTML = '<div style="padding:20px;color:#94a3b8;text-align:center;">暂无经验记录,用户查询后点「挖矿」积累</div>'; return; }
+  const leg = '<div class="tl-legend"><span><i style="background:#059669"></i>成功</span><span><i style="background:#f59e0b"></i>纠错后成功</span><span><i style="background:#ea580c"></i>纠错事件</span><span><i style="background:#dc2626"></i>失败</span></div>';
+  let bars = '';
+  tl.forEach(d => {
+    const seg = (n, cls, lbl) => n > 0 ? `<div class="tl-bar ${cls}" style="height:${Math.max(4, n / maxT * 28)}px" data-v="${lbl}:${n}"></div>` : '';
+    const inner = seg(d.success, 's', '成功') + seg(d.corrected, 'c', '纠错后成功')
+                + seg(d.correction_event, 'e', '纠错事件') + seg(d.failed, 'f', '失败');
+    bars += `<div class="tl-row"><div class="tl-date">${esc(d.date)}</div><div class="tl-bars">${inner}</div><div style="font-size:12px;color:#64748b;width:30px;">${d.total}</div></div>`;
+  });
+  el.innerHTML = leg + bars;
+}
+
+// ============ 启动 ============
+renderExpr();
+// 图标自动渲染:监听 DOM 变化,debounce 后统一 createIcons(幂等,兜底所有动态渲染)
+let _iconTimer = null;
+new MutationObserver(() => {
+  if (_iconTimer) clearTimeout(_iconTimer);
+  _iconTimer = setTimeout(refreshIcons, 100);
+}).observe(document.body, { childList: true, subtree: true });
+init();
+</script>
+</body>
+</html>

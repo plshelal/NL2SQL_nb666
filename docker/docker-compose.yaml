@@ -1,17 +1,55 @@
 services:
   mysql:
     image: mysql:8.0
-    container_name: mysql
+    container_name: finance-mysql
     restart: unless-stopped
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: 123321
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123321}
     volumes:
       - mysql:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: finance-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant:/qdrant/storage
+
+  es:
+    build:
+      context: .
+      dockerfile: Dockerfile.es
+    container_name: finance-es
+    restart: unless-stopped
+    ports:
+      - "9200:9200"
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      xpack.security.enabled: "false"
+    volumes:
+      - es:/usr/share/elasticsearch/data
+
+  tei:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.tei
+    container_name: finance-tei
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./tei-model:/app/model
+
 volumes:
   mysql:
+  qdrant:
+  es:

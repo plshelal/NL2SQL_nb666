@@ -1,0 +1,23 @@
+# 自建 embedding 服务镜像(替代官方 ghcr TEI,绕开 ghcr.io 拉取)
+# 基础镜像走 Docker Hub(可用 registry-mirrors 加速),模型运行时挂载,不打进镜像
+# 构建:docker compose build tei
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    MODEL_PATH=/app/model
+
+WORKDIR /app
+
+# torch 用 CPU 专用 wheel(约200MB,比默认 CUDA 版小一个数量级),其余走清华源
+RUN pip install --index-url https://download.pytorch.org/whl/cpu torch \
+    --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+ && pip install -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    fastapi "uvicorn[standard]" sentence-transformers
+
+COPY embedding_server.py .
+
+EXPOSE 8081
+
+# 模型目录由 compose 挂载到 /app/model(项目 docker/tei-model/)
+CMD ["uvicorn", "embedding_server:app", "--host", "0.0.0.0", "--port", "8081"]

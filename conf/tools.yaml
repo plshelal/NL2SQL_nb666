@@ -1,0 +1,65 @@
+# 外部数据工具配置(iFinD MCP)
+# Token 走环境变量 IFIND_MCP_TOKEN(.env,不入库)
+
+# 可插拔开关:外部数据模块总开关(环境变量 EXTERNAL_ENABLED=0/1 可覆盖)
+# false=外部词当噪声忽略,只答库内;true=检测到外部意图弹确认框,用户确认后调 MCP
+external_enabled: true
+
+ifind:
+  edb:
+    url: https://api-mcp.51ifind.com:8643/ds-mcp-servers/hexin-ifind-ds-edb-mcp
+    transport: streamable_http      # 实测该端点为 streamable HTTP(SSE 握手 405)
+    tool: get_edb_data              # 已实测确认
+    timeout_ms: 20000
+    cache_ttl_hours: 24             # 宏观数据月频,缓存一天
+  news:
+    url: https://api-mcp.51ifind.com:8643/ds-mcp-servers/hexin-ifind-ds-news-mcp
+    transport: streamable_http
+    tool: search_news
+    timeout_ms: 20000
+    cache_ttl_hours: 2              # 资讯类缓存短
+
+# 外部词典:命中即认为问题含外部数据意图(路由到 external/mixed)
+# 大小写不敏感匹配
+external_terms:
+  macro: [CPI, PPI, LPR, MLF, GDP, PMI, CPI同比, PPI同比, 社融, M0, M1, M2,
+          金价, 黄金, 油价, 原油, 铜价, 大宗商品, 美元指数, 人民币汇率, 汇率,
+          降准, 降息, 加息, 国债收益率, 十年期国债]
+  news: [政策, 新闻, 资讯, 公告, 保交楼, 楼市, 房地产, 地产, 房价,
+         行业动态, 市场, 央行, 国务院, 监管新规]
+
+# 内部信号词:命中即认为涉及库内数据(用于 mixed 判断)
+# (机构名"X市农商行"另由正则匹配)
+internal_terms: [不良, 拨备, 资本充足, 逾期, 存款, 贷款, 净利润, 营收, 营业收入,
+                 营业支出, 中间业务, 净利息, 成本收入, 员工, 网点, 客户数, 客户,
+                 存贷比, 人均, 点均, 户均, 利润率, 占比, 监管边际, 农商行]
+
+# 消歧词根:问题含该词但未指明具体口径 → 反问
+# 每个词根的候选指标(与 index_list/indicator_formula 的指标名一致)
+ambiguous_roots:
+  贷款:
+    question: 您问的"贷款"是指哪个口径?
+    options: [各项贷款余额, 对公贷款余额, 个人贷款余额, 不良贷款余额]
+  存款:
+    question: 您问的"存款"是指哪个口径?
+    options: [各项存款余额, 对公存款余额, 个人存款余额]
+  客户:
+    question: 您问的"客户"是指?
+    options: [个人客户数, 对公客户数]
+  收入:
+    question: 您问的"收入"是指?
+    options: [营业收入, 中间业务收入, 净利息收入]
+
+# 模糊量词:单一指标+模糊问法 → 带默认口径作答(不反问)
+vague_quantifiers: [怎么样, 如何, 表现, 情况, 啥样, 怎么样了]
+
+# EDB 指标口径归一:口语词 → 精确指标名(避免语义匹配到"上年=100"定基指数)
+# 用户明确说"指数/定基"时不套用映射
+macro_aliases:
+  CPI: CPI当月同比
+  CPI同比: CPI当月同比
+  消费者物价: CPI当月同比
+  通胀: CPI当月同比
+  通货膨胀: CPI当月同比
+  PPI: PPI当月同比
+  生产者物价: PPI当月同比

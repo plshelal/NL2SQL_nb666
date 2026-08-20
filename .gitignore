@@ -1,0 +1,55 @@
+# Python-generated files
+__pycache__/
+*.py[cod]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.pyright/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local config and secrets (never commit)
+.env
+.env.local
+.env.*.local
+conf/app_config.local.yaml
+
+# Logs
+logs/
+*.log
+app/agent/logs/
+app/core/logs/
+app/scripts/logs/
+
+# Generated / local data
+seeds/raw/
+
+# 模型文件(1.3GB,随交付包走,不入 git)
+docker/tei-model/
+
+# 训练/微调产物与数据集残留(不入 git)
+conf/fewshot_embeddings.pkl
+conf/training_data.jsonl
+conf/finetune_data.json
+conf/lora_adapter/
+*.safetensors
+tests/eval_results/
+
+# 文档二进制与临时文件
+*.docx
+~$*
+
+# macOS
+.DS_Store

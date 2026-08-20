@@ -83,12 +83,31 @@ async def execute_sql(state: DataAgentState, runtime: Runtime[DataAgentContext])
         if not has_data:
             missing_hint = "未查询到数据,请检查机构或指标是否正确。"
 
+        # mixed 路由:外部结果徽标透传前端(数据已在 call_external_tool 并行取回)
+        external = state.get("external_result") or []
+        ext_badge = ""
+        if external:
+            sources = "、".join(dict.fromkeys(e.get("source", "") for e in external if e))
+            ext_badge = sources
+            writer({"external_source": sources})
+
         writer({"result": result, "sql": sql, "hint": missing_hint})
         elapsed = time.time() - state.get("start_time", time.time())
         logger.info(f"总耗时 {elapsed:.1f}s | 执行sql成功,结果：{result}")
 
-        # 审计
+        # 审计 + 经验日志(P0 自迭代采集)
         await _write_audit(runtime, state, sql, result, False)
+        try:
+            meta_repo = runtime.context["meta_mysql_repository"]
+            await meta_repo.write_experience(
+                query_text=query, final_sql=sql,
+                outcome="corrected" if state.get("retry_count", 0) > 0 else "success",
+                correction_path="correct" if state.get("retry_count", 0) > 0 else None,
+                latency_ms=int(elapsed * 1000),
+                user_position=perms.get("position", ""),
+            )
+        except Exception as e:
+            logger.warning(f"经验日志写入失败(忽略): {e}")
 
         # 5. 排名全是1 → 触发correct_sql重生成
         if result and len(result) >= 2:
@@ -97,36 +116,55 @@ async def execute_sql(state: DataAgentState, runtime: Runtime[DataAgentContext])
                 logger.warning("检测到排名全部为1，触发correct_sql重生成")
                 return {"error": "RANK在WHERE筛选之后执行，排名全为1。请改为先全量RANK再外层筛选", "sql": sql}
 
-        # 6. 图表
+        # 6+7. 图表 + 报告并行(无依赖,各看 result,省一半 LLM 等待)
         if has_data:
-          try:
-              tml = await loader_prompt("chart_config")
-              prompt = PromptTemplate(template=tml, input_variables=["query", "result"])
-              chain = prompt | llm | JsonOutputParser()
-              chart_config = await chain.ainvoke({
-                  "query": query, "result": json.dumps(result, ensure_ascii=False)
-              })
-              writer({"chart": chart_config.get("chart", {})})
-          except Exception as e:
-              logger.warning(f"图表生成失败: {e}")
+            import asyncio as _aio
 
-        # 7. 分析报告
-        if has_data:
-          try:
-              tml = await loader_prompt("analysis_report")
-              prompt = PromptTemplate(template=tml, input_variables=["query", "result"])
-              chain = prompt | llm | StrOutputParser()
-              report = await chain.ainvoke({
-                  "query": query, "result": json.dumps(result, ensure_ascii=False)
-              })
-              writer({"report": report.strip()})
-          except Exception as e:
-              logger.warning(f"报告生成失败: {e}")
+            async def _gen_chart():
+                try:
+                    tml = await loader_prompt("chart_config")
+                    prompt = PromptTemplate(template=tml, input_variables=["query", "result"])
+                    chain = prompt | llm | JsonOutputParser()
+                    chart_config = await chain.ainvoke({
+                        "query": query, "result": json.dumps(result, ensure_ascii=False)
+                    })
+                    writer({"chart": chart_config.get("chart", {})})
+                except Exception as e:
+                    logger.warning(f"图表生成失败: {e}")
+
+            async def _gen_report():
+                try:
+                    from app.agent.tools.tool_executor import format_external_ctx
+                    ext_ctx = format_external_ctx(external) if external else ""
+                    tml = await loader_prompt("analysis_report")
+                    if ext_ctx:
+                        tml += "\n\n【外部参考】(与库内数据分别陈述,禁止因果结论)\n" + ext_ctx
+                    prompt = PromptTemplate(template=tml, input_variables=["query", "result"])
+                    chain = prompt | llm | StrOutputParser()
+                    report = await chain.ainvoke({
+                        "query": query, "result": json.dumps(result, ensure_ascii=False)
+                    })
+                    writer({"report": report.strip()})
+                except Exception as e:
+                    logger.warning(f"报告生成失败: {e}")
+
+            await _aio.gather(_gen_chart(), _gen_report())
 
         return {}
 
     except Exception as e:
         logger.error(f"执行sql异常：{str(e)}")
+        # 经验记录:失败案例(蒸馏规避规则的素材)
+        try:
+            meta_repo = runtime.context["meta_mysql_repository"]
+            await meta_repo.write_experience(
+                query_text=state.get("query", ""), final_sql=state.get("sql", ""),
+                outcome="failed", error_message=str(e)[:500],
+                latency_ms=int((time.time() - state.get("start_time", time.time())) * 1000),
+                user_position=(state.get("user_permissions") or {}).get("position", ""),
+            )
+        except Exception as log_e:
+            logger.warning(f"失败经验记录失败(忽略): {log_e}")
         raise
 
 

@@ -62,7 +62,8 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_meta_sess
     if not row or row.password_hash != _hash_password(req.password):
         return AuthResponse(code=1, message="用户名或密码错误")
 
-    user = UserInfo(id=row.id, username=row.username, level=row.level, position=row.position)
+    user = UserInfo(id=row.id, username=row.username, level=row.level,
+                    position=row.position, org_name=row.org_name)
     token = secrets.token_hex(32)
     _token_store[token] = user
     logger.info(f"用户登录: {req.username}")

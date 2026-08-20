@@ -13,17 +13,32 @@ class MetaMysqlRepository:
         self.session = session
 
     async def ensure_term_cache_table(self):
-        """确保术语缓存表存在"""
+        """确保术语缓存表存在(老库自动补 source/confidence 列)"""
         await self.session.execute(text("""
             CREATE TABLE IF NOT EXISTS term_cache (
                 term VARCHAR(100) NOT NULL,
                 column_id VARCHAR(200) NOT NULL,
                 table_id VARCHAR(64),
                 hit_count INT DEFAULT 1,
+                source VARCHAR(32) DEFAULT 'auto_query' COMMENT '来源:auto_query/经验蒸馏/人工',
+                confidence FLOAT DEFAULT 0.5 COMMENT '置信度',
                 last_hit DATETIME DEFAULT NOW(),
                 PRIMARY KEY (term, column_id)
             )
         """))
+        # 老表迁移:列不存在则补(查 information_schema,幂等)
+        for col_ddl in (
+            "ADD COLUMN source VARCHAR(32) DEFAULT 'auto_query' COMMENT '来源:auto_query/经验蒸馏/人工'",
+            "ADD COLUMN confidence FLOAT DEFAULT 0.5 COMMENT '置信度'",
+        ):
+            col_name = col_ddl.split("ADD COLUMN ")[1].split(" ")[0]
+            r = await self.session.execute(text(
+                "SELECT COUNT(*) AS n FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='term_cache' AND COLUMN_NAME=:c"
+            ), {"c": col_name})
+            if r.scalar() == 0:
+                await self.session.execute(text(f"ALTER TABLE term_cache {col_ddl}"))
+        await self.session.commit()
 
     async def get_cached_columns(self, terms: list[str]) -> dict[str, list[dict]]:
         """查询术语缓存，仅返回命中>=3次的可靠映射"""
@@ -49,19 +64,56 @@ class MetaMysqlRepository:
             logger.info(f"术语缓存命中(≥3次): {list(mapping.keys())}")
         return mapping
 
-    async def save_term_mappings(self, terms: list[str], column_id: str, table_id: str):
-        """保存术语→字段映射"""
+    async def save_term_mappings(self, terms: list[str], column_id: str, table_id: str,
+                                 source: str = "auto_query", confidence: float = 0.5):
+        """保存术语→字段映射(带来源与置信度,自动/蒸馏/人工可区分、可回滚)"""
         for term in terms:
             if not term or len(term) < 2:
                 continue
             await self.session.execute(
                 text("""
-                    INSERT INTO term_cache (term, column_id, table_id)
-                    VALUES (:term, :column_id, :table_id)
+                    INSERT INTO term_cache (term, column_id, table_id, source, confidence)
+                    VALUES (:term, :column_id, :table_id, :source, :confidence)
                     ON DUPLICATE KEY UPDATE hit_count = hit_count + 1, last_hit = NOW()
                 """),
-                {"term": term, "column_id": column_id, "table_id": table_id}
+                {"term": term, "column_id": column_id, "table_id": table_id,
+                 "source": source, "confidence": confidence}
             )
+
+    async def apply_approved_alias_rules(self) -> int:
+        """蒸馏别名回灌:approved 的 alias 规则 → term_cache(source=经验蒸馏)。
+
+        trigger(术语)→ action(指标名):映射到 column_info 中 index_name 字段,
+        hit_count 直接置 5 越过 ≥3 信任门槛立即生效;应用后规则标记 applied 防重复。
+        """
+        r = await self.session.execute(text(
+            "SELECT id, trigger_pattern, action, confidence FROM distilled_rules "
+            "WHERE rule_type='alias' AND status='approved'"
+        ))
+        rules = r.fetchall()
+        if not rules:
+            return 0
+        cr = await self.session.execute(text(
+            "SELECT id, table_id FROM column_info WHERE name='index_name' LIMIT 1"
+        ))
+        col = cr.fetchone()
+        if not col:
+            logger.warning("[蒸馏回灌] column_info 无 index_name 字段,跳过回灌")
+            return 0
+        applied = 0
+        for ru in rules:
+            await self.session.execute(text("""
+                INSERT INTO term_cache (term, column_id, table_id, hit_count, source, confidence)
+                VALUES (:t, :c, :tb, 5, '经验蒸馏', :conf)
+                ON DUPLICATE KEY UPDATE hit_count = hit_count + 1, confidence = VALUES(confidence)
+            """), {"t": ru.trigger_pattern, "c": col.id, "tb": col.table_id, "conf": ru.confidence})
+            await self.session.execute(text(
+                "UPDATE distilled_rules SET status='applied' WHERE id=:i"
+            ), {"i": ru.id})
+            applied += 1
+            logger.info(f"[蒸馏回灌] 别名生效: {ru.trigger_pattern} -> {ru.action}")
+        await self.session.commit()
+        return applied
 
     async def save_table_infos(self, table_infos:list[TableInfoMySQL]):
         """
@@ -134,6 +186,29 @@ class MetaMysqlRepository:
         :return:
         """
         return await self.session.get(TableInfoMySQL,table_id)
+
+    async def write_experience(self, query_text: str, final_sql: str, outcome: str,
+                               error_message: str = "", correction_path: str = None,
+                               latency_ms: int = None, user_position: str = ""):
+        """经验日志(P0 自迭代数据采集):success/corrected/failed/clarified/agent_trace/external_call"""
+        await self.session.execute(text("""
+            INSERT INTO experience_log (query_text, final_sql, outcome, error_message,
+                                        correction_path, latency_ms, user_position)
+            VALUES (:q, :s, :o, :e, :c, :l, :p)
+        """), {"q": query_text, "s": final_sql, "o": outcome, "e": error_message or "",
+               "c": correction_path, "l": latency_ms, "p": user_position})
+        await self.session.commit()
+
+    async def audit_external_call(self, username: str, tool_name: str, query_text: str,
+                                  ok: bool, summary: str = ""):
+        """外部数据调用审计(query_log 复用:generated_sql 存工具名+查询串,合规要求外部查询可追溯)"""
+        await self.session.execute(text("""
+            INSERT INTO query_log (username, query_text, generated_sql, result_status)
+            VALUES (:u, :q, :t, :s)
+        """), {"u": username, "q": query_text,
+               "t": f"[{tool_name}] {query_text}",
+               "s": "external_ok" if ok else "external_fail"})
+        await self.session.commit()
 
     async def get_indicator_formulas(self, terms: list[str]) -> dict[str, dict]:
         """根据术语列表查询计算公式，返回 {term: {index_names, sql_template, description}}

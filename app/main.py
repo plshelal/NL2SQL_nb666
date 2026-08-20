@@ -15,35 +15,21 @@ from app.api.routers.audit_router import audit_router
 from app.api.routers.auth_router import auth_router
 from app.api.routers.qa_router import qa_router
 from app.api.routers.query_router import query_router
+from app.api.routers.review_router import review_router
 from app.core.context import request_id_ctx_var
 from app.core.lifespan import lifespan
 
 from .config import APP_PORT
 from .errors import AppError
 from .response import fail
-from .routers.accounts import router as accounts_router
-from .routers.collections import router as collections_router
-from .routers.customers import router as customers_router
-from .routers.foundation import router as foundation_router
-from .routers.loans import router as loans_router
-from .routers.operations import router as operations_router
-from .routers.repayments import router as repayments_router
-from .routers.risk import router as risk_router
-from .routers.wealth import router as wealth_router
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 OPENAPI_TAGS = [
     {"name": "query", "description": "金融问数接口"},
-    {"name": "foundation", "description": "基础配置接口"},
-    {"name": "customers", "description": "客户接口"},
-    {"name": "accounts", "description": "账户与交易接口"},
-    {"name": "wealth", "description": "理财接口"},
-    {"name": "loans", "description": "信贷接口"},
-    {"name": "repayments", "description": "还款与逾期接口"},
-    {"name": "risk", "description": "风控与反洗钱接口"},
-    {"name": "collections", "description": "催收接口"},
-    {"name": "operations", "description": "运营支撑接口"},
+    {"name": "auth", "description": "认证接口"},
+    {"name": "audit", "description": "审计日志接口"},
+    {"name": "knowledge", "description": "知识管理(总览/审核/添加)接口"},
 ]
 
 app = FastAPI(
@@ -57,15 +43,7 @@ app.include_router(auth_router, tags=["auth"])
 app.include_router(qa_router, tags=["qa"])
 app.include_router(query_router, tags=["query"])
 app.include_router(audit_router, tags=["audit"])
-app.include_router(foundation_router)
-app.include_router(customers_router)
-app.include_router(accounts_router)
-app.include_router(wealth_router)
-app.include_router(loans_router)
-app.include_router(repayments_router)
-app.include_router(risk_router)
-app.include_router(collections_router)
-app.include_router(operations_router)
+app.include_router(review_router, tags=["knowledge"])
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

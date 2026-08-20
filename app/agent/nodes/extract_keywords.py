@@ -38,8 +38,9 @@ async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentCont
         # 提取关键字
         keywords=jieba.analyse.extract_tags(query, allowPOS=allowPOS)
 
-        # 避免分词后，缺失语义，将问题添加到提词列表中
-        keywords=list(set(keywords+[query]))
+        # 分词结果去重即可,不把整句塞进关键词——
+        # 整句 embedding 开销大(长文本)且无语义增益(分词已覆盖实体),还污染召回
+        keywords = list(set(keywords))
 
         logger.info(f"提取关键成功{keywords}")
 

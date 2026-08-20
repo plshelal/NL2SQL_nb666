@@ -18,6 +18,12 @@ async def filter_metric(state: DataAgentState, runtime: Runtime[DataAgentContext
         query = state["query"]
         metric_infos: list[MetricInfoState] = state["metric_infos"]
 
+        # 小库跳过:召回已限 top3,候选池本就不大;两步CoT 的 Step1(plan)还会
+        # 再筛一遍实体,此处 LLM 过滤冗余(2026-08 审计:过滤[]→兜底全保留,净效果为零)
+        if len(metric_infos) <= 10:
+            logger.info(f"[filter_metric] 候选{len(metric_infos)}个≤10,跳过LLM过滤")
+            return {"metric_infos": metric_infos}
+
         tml = await loader_prompt("filter_metric_info")
         prompt = PromptTemplate(template=tml, input_variables=["query", "metric_infos"])
         output_parser = JsonOutputParser()

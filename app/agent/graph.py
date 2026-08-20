@@ -9,9 +9,9 @@ from app.agent.nodes.correct_sql import correct_sql
 from app.agent.nodes.execute_sql import execute_sql
 from app.agent.nodes.expand_keywords import expand_keywords
 from app.agent.nodes.extract_keywords import extract_keywords
-from app.agent.nodes.schema_link import schema_link
 from app.agent.nodes.filter_metric import filter_metric
 from app.agent.nodes.filter_table import filter_table
+from app.agent.nodes.formula_match import formula_match
 from app.agent.nodes.generate_sql import generate_sql
 from app.agent.nodes.merge_retrieved_info import merge_retrieved_info
 from app.agent.nodes.recall_column import recall_column
@@ -30,12 +30,18 @@ from app.repositories.mysql.meta_mysql_repository import MetaMysqlRepository
 from app.repositories.qdrant.column_qdrant_respository import ColumnQdrantRepository
 from app.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepository
 
-# 创建图
+# 内部图(2026-08-18 瘦身:纯执行层,11 节点)
+# 决策职责(路由/组词/消歧/澄清)全部归外层 Agent(orchestrator);
+# 内部只做确定性转换:分词→公式匹配→召回→合并→过滤→上下文→SQL→校验→执行。
+# 已删节点: schema_link(组词段,公式匹配独立成 formula_match)、
+#          assess_clarify(外层 Agent 按行为总则反问)、
+#          route_intent/schema_all(路由已废,恒走召回链)、
+#          call_external_tool(外层 Agent 直接调外部工具)。
+# 权限链路(execute_sql 白名单校验/generate_sql 权限收敛/审计/经验日志)全部原样保留。
 graph_builder = StateGraph(state_schema=DataAgentState, context_schema=DataAgentContext)
 
-# 添加节点
 graph_builder.add_node("extract_keywords", extract_keywords)
-graph_builder.add_node("schema_link", schema_link)
+graph_builder.add_node("formula_match", formula_match)
 graph_builder.add_node("expand_keywords", expand_keywords)
 graph_builder.add_node("recall_column", recall_column)
 graph_builder.add_node("recall_metric", recall_metric)
@@ -49,10 +55,9 @@ graph_builder.add_node("validate_sql", validate_sql)
 graph_builder.add_node("correct_sql", correct_sql)
 graph_builder.add_node("execute_sql", execute_sql)
 
-# 设置边
 graph_builder.add_edge(START, "extract_keywords")
-graph_builder.add_edge("extract_keywords", "schema_link")
-graph_builder.add_edge("schema_link", "expand_keywords")
+graph_builder.add_edge("extract_keywords", "formula_match")
+graph_builder.add_edge("formula_match", "expand_keywords")
 graph_builder.add_edge("expand_keywords", "recall_column")
 graph_builder.add_edge("expand_keywords", "recall_metric")
 graph_builder.add_edge("expand_keywords", "recall_value")
@@ -68,10 +73,9 @@ graph_builder.add_conditional_edges("generate_sql",
     lambda state: END if (state.get("perm_rejected") or state.get("missing_info")) else "validate_sql",
     {END: END, "validate_sql": "validate_sql"})
 
-# 设置条件边
 graph_builder.add_conditional_edges("validate_sql",
                                     lambda state: "execute_sql" if state.get("error") is None else "correct_sql",
-                                    {"execute_sql":"execute_sql","correct_sql":"correct_sql"})
+                                    {"execute_sql": "execute_sql", "correct_sql": "correct_sql"})
 
 graph_builder.add_edge("correct_sql", "execute_sql")
 # execute 后:权限拦截 → END;有错误且纠错次数<2 → correct;否则(成功或纠错耗尽) → END
@@ -80,7 +84,6 @@ graph_builder.add_conditional_edges("execute_sql",
     {"correct_sql": "correct_sql", END: END})
 
 
-# 编译图
 graph = graph_builder.compile()
 
 # 打印图的流程显示
@@ -88,8 +91,6 @@ graph = graph_builder.compile()
 
 if __name__ == '__main__':
     async def test():
-
-
         # 创建依赖对象
         # 初始化客户端对象
         embedding_client_manager.init()

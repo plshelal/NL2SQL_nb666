@@ -39,9 +39,6 @@ SQL: WITH rank_2024 AS (SELECT o.org_name, RANK() OVER (ORDER BY d.index_value D
 可参考的指标信息：
 {metric_infos}
 
-当前时间信息：
-{date_info}
-
 数据库环境：
 {db_info}
 

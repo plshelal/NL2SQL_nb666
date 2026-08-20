@@ -7,7 +7,7 @@ llm = ChatOpenAI(
     api_key=app_config.llm.api_key,
     base_url="https://api.deepseek.com/v1",
     temperature=0,
-    extra_body={"thinking": {"type": "disabled"}},
+    extra_body={"thinking": {"type": "enabled"}},
 )
 
 

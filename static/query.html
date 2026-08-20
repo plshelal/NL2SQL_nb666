@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <title>金融问数</title>
 <style>
 :root { --primary: #1e40af; --primary-light: #3b82f6; --bg: #f1f5f9; --surface: #fff; --text: #1e293b; --text-secondary: #64748b; --border: #e2e8f0; --success: #059669; --danger: #dc2626; --radius: 10px; --shadow: 0 1px 3px rgba(0,0,0,.06); }
@@ -26,9 +29,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .app.active { display: flex; }
 .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; height: 52px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 .header .logo { font-weight: 700; font-size: 16px; color: var(--primary); display: flex; align-items: center; gap: 8px; }
-.header .logo .dot { width: 8px; height: 8px; background: var(--primary-light); border-radius: 50%; }
+.header .logo .ic-logo { width: 20px; height: 20px; color: var(--primary-light); }
+/* lucide 图标通用:线性单色,随父色 */
+.ic, [data-lucide] { stroke-width: 2; }
 .header .user-info { display: flex; align-items: center; gap: 12px; font-size: 13px; }
 .header .user-info .badge { background: #eff6ff; color: var(--primary); padding: 3px 10px; border-radius: 12px; font-weight: 600; font-size: 12px; }
+.header .user-info .avatar { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; background: #64748b; cursor: default; user-select: none; }
+.header .user-info .avatar.admin { background: var(--primary); }
+.header .user-info .avatar:hover { box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
 .header .user-info button { background: none; border: 1px solid var(--border); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text-secondary); }
 .main { display: flex; flex: 1; overflow: hidden; }
 .sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
@@ -60,7 +68,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .bubble .big-number .val { font-size: 36px; font-weight: 800; color: var(--primary); }
 .bubble .big-number .lbl { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
 .bubble .chart-wrap { max-height: 320px; margin: 8px 0; }
-.bubble .report { background: #f8faff; border-left: 4px solid var(--primary); padding: 10px 14px; margin-top: 10px; border-radius: 0 6px 6px 0; font-size: 13px; line-height: 1.8; color: #334155; }
+.bubble .report { background: #f8faff; border-left: 4px solid var(--primary); padding: 10px 14px; margin-top: 10px; border-radius: 0 6px 6px 0; font-size: 13px; line-height: 1.5; color: #334155; }
+.bubble .report > div { margin: 2px 0; }
+.bubble .report > table { margin: 6px 0; }
+.bubble .report br { display: none; }
 .bubble .error { background: #fef2f2; color: var(--danger); padding: 8px 12px; border-radius: 6px; font-size: 13px; }
 .bubble .state-box { padding: 10px 14px; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 8px; line-height: 1.5; }
 .bubble .state-box .icon { font-size: 17px; flex-shrink: 0; }
@@ -69,8 +80,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .bubble .state-box.empty { color: var(--text-secondary); }
 .bubble .thinking { background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
 .bubble .thinking.done { opacity:.6; }
-.bubble .thinking.collapsed .stages { display:none; }
+/* 收起态:只显示当前行(最后一条 stage),其余隐藏 */
+.bubble .thinking.collapsed .stages { display:block; }
+.bubble .thinking.collapsed .stages .stage:not(:last-child) { display:none; }
+.bubble .thinking.collapsed .stages .stage:last-child { display:flex; }
 .bubble .thinking.collapsed .think-head { margin-bottom:0; }
+/* 展开态:限制最多显示 8 行,超出滚动 */
+.bubble .thinking:not(.collapsed) .stages { max-height:200px; overflow-y:auto; }
 .bubble .think-head { font-size:12px; color:var(--text-secondary); margin-bottom:8px; font-weight:600; display:flex; align-items:center; gap:6px; }
 .bubble .think-head.clickable { cursor:pointer; user-select:none; }
 .bubble .think-head.clickable:hover { color:var(--primary); }
@@ -86,14 +102,88 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .bubble .stage.done .stage-icon { color:var(--success); }
 .bubble .stage.active { color:var(--primary); font-weight:500; }
 .bubble .stage .spinner { display:inline-block; width:11px; height:11px; border:2px solid #bfdbfe; border-top-color:var(--primary); border-radius:50%; animation:spin .65s linear infinite; }
+/* lucide 图标尺寸适配 */
+.msg-row .avatar svg { width:18px; height:18px; }
+.bubble .stage-icon svg { width:12px; height:12px; }
+.bubble .stage .stage-emoji { width:13px; height:13px; flex-shrink:0; color:var(--text-secondary); }
+.bubble .think-head .chev svg { width:12px; height:12px; transition:transform .2s; display:block; }
+.bubble .think-head .chev { display:inline-flex; }
+.bubble .state-box .icon svg { width:17px; height:17px; }
+.q-ic { width:14px; height:14px; vertical-align:-2px; flex-shrink:0; }
+.export-csv svg { width:12px; height:12px; }
 @keyframes spin { to { transform:rotate(360deg); } }
 .bubble .stage .stage-icon { width:11px; text-align:center; flex-shrink:0; }
+.bubble .clarify-box { background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:12px 14px; margin-bottom:8px; }
+.bubble .clarify-box .q { font-size:13px; font-weight:600; color:#92400e; margin-bottom:10px; display:flex; gap:6px; align-items:center; }
+.bubble .clarify-box .opts { display:flex; flex-wrap:wrap; gap:8px; }
+.bubble .clarify-box .opt { padding:7px 14px; border-radius:18px; border:1px solid #f59e0b; background:#fff; color:#92400e; font-size:13px; cursor:pointer; transition:all .15s; }
+.bubble .clarify-box .opt:hover { background:#f59e0b; color:#fff; }
+.bubble .ext-confirm { background:#f0fdf4; border:1px solid #86efac; border-radius:8px; padding:12px 14px; margin-bottom:8px; }
+.bubble .ext-confirm .q { font-size:13px; font-weight:600; color:#166534; margin-bottom:10px; display:flex; gap:6px; align-items:center; }
+.bubble .ext-confirm input { width:100%; padding:8px 10px; border:1px solid #86efac; border-radius:6px; font-size:13px; font-family:inherit; outline:none; margin-bottom:10px; }
+.bubble .ext-confirm input:focus { border-color:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,.12); }
+.bubble .ext-confirm .row { display:flex; gap:8px; }
+.bubble .ext-confirm button { padding:7px 16px; border-radius:6px; border:none; cursor:pointer; font-size:13px; font-weight:600; }
+.bubble .ext-confirm .go { background:#16a34a; color:#fff; }
+.bubble .ext-confirm .go:hover { background:#15803d; }
+.bubble .ext-confirm .skip { background:#fff; color:#64748b; border:1px solid #e2e8f0; }
+.bubble .ext-confirm .skip:hover { background:#f8fafc; }
+.bubble .note-line { font-size:12px; color:#0369a1; background:#f0f9ff; padding:6px 10px; border-radius:6px; margin-bottom:6px; }
+.bubble .ext-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#7c2d12; background:#fff7ed; border:1px solid #fdba74; padding:3px 10px; border-radius:12px; margin-bottom:6px; }
 .input-row { padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 10px; }
 .input-row textarea { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; resize: none; min-height: 44px; max-height: 120px; outline: none; }
 .input-row textarea:focus { border-color: var(--primary-light); }
 .input-row button { padding: 10px 22px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
 .input-row button:hover { background: #1e3a8a; }
 .input-row button:disabled { background: #93c5fd; }
+.tool-ico { padding: 0 12px; background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 18px; color: var(--text-secondary); flex-shrink: 0; }
+.tool-ico:hover { background: #f8fafc; border-color: var(--primary-light); color: var(--primary); }
+.mcp-pop { position: fixed; bottom: 78px; right: 24px; width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 50; overflow: hidden; }
+.mcp-pop-head { padding: 10px 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); border-bottom: 1px solid var(--border); background: #f8fafc; }
+.mcp-item { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.mcp-item:last-child { border-bottom: none; }
+.mcp-item .mi-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.mcp-item .mi-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.mcp-item .mi-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+.mcp-item .mi-dot.off { background: #cbd5e1; }
+.mcp-item .mi-tool { font-size: 12px; color: var(--text-secondary); padding: 2px 0; display: flex; align-items: center; gap: 6px; }
+.mcp-item .mi-tool .t-name { font-family: "Cascadia Code", Consolas, monospace; color: var(--primary); }
+.suggest-wrap { max-width: 640px; margin: 0 auto; padding: 48px 24px 20px; }
+.suggest-wrap .hello { text-align: center; margin-bottom: 28px; }
+.suggest-wrap .hello .t { font-size: 22px; font-weight: 700; color: var(--text); }
+.suggest-wrap .hello .d { font-size: 13px; color: var(--text-secondary); margin-top: 6px; }
+.suggest-group { margin-bottom: 16px; }
+.suggest-group .g-title { font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.suggest-group .g-title .g-ico { font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: 8px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; font-size: 13px; cursor: pointer; color: var(--text); transition: all .15s; }
+.chip:hover { border-color: var(--primary-light); color: var(--primary); background: #f0f6ff; }
+.export-csv { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--primary); background: #eff6ff; border: 1px solid #bfdbfe; padding: 3px 10px; border-radius: 12px; cursor: pointer; margin-top: 6px; }
+.export-csv:hover { background: #dbeafe; }
+/* 气泡底部操作栏 */
+.bubble .action-bar { display: flex; gap: 6px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #f1f5f9; opacity: .6; transition: opacity .15s; }
+.bubble:hover .action-bar { opacity: 1; }
+.act-ico { display: inline-flex; align-items: center; padding: 3px; border-radius: 5px; cursor: pointer; color: var(--text-secondary); }
+.act-ico:hover { background: #f1f5f9; color: var(--primary); }
+.act-ico svg { width: 14px; height: 14px; }
+/* 反馈弹框 */
+.feedback-modal { position: fixed; inset: 0; background: rgba(15,23,42,.4); display: none; align-items: center; justify-content: center; z-index: 100; }
+.feedback-modal.show { display: flex; }
+.feedback-box { background: var(--surface); border-radius: var(--radius); box-shadow: 0 8px 30px rgba(0,0,0,.2); padding: 24px; width: 420px; max-width: 90vw; }
+.feedback-box h3 { font-size: 16px; margin-bottom: 4px; color: var(--text); }
+.feedback-box .sub { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; }
+.feedback-box textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; resize: none; min-height: 80px; outline: none; }
+.feedback-box textarea:focus { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+.feedback-box .fb-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.feedback-box button { padding: 8px 18px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+.feedback-box .fb-go { background: var(--primary); color: #fff; }
+.feedback-box .fb-go:hover { background: #1e3a8a; }
+.feedback-box .fb-cancel { background: #fff; color: var(--text-secondary); border: 1px solid var(--border); }
+.toast-copied { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 8px 18px; border-radius: 8px; font-size: 13px; display: none; z-index: 100; }
+.toast { position: fixed; top: 20px; right: 20px; z-index: 100; padding: 12px 20px; border-radius: 8px; font-size: 13px; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.15); display: none; }
+.toast.ok { background: var(--success); }
+.toast.err { background: var(--danger); }
+.toast.info { background: var(--primary); }
 </style>
 </head>
 <body>
@@ -128,31 +218,52 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 <!-- Chat -->
 <div class="app" id="app-chat">
   <header class="header">
-    <div class="logo"><span class="dot"></span>金融问数</div>
+    <div class="logo"><i data-lucide="layout-dashboard" class="ic-logo"></i>金融问数</div>
     <div class="user-info">
       <span id="header-username"></span>
-      <span class="badge" id="header-level"></span>
-      <span class="badge" id="header-position"></span>
-      <button onclick="doLogout()">退出</button>
+      <span class="avatar" id="header-avatar" title=""></span>
+      <a id="link-knowledge" href="/static/knowledge.html" style="background:#eff6ff;color:var(--primary);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="book-open" style="width:14px;height:14px;"></i>知识管理</a>
+      <button onclick="doLogout()"><i data-lucide="log-out" style="width:13px;height:13px;vertical-align:-2px;"></i> 退出</button>
     </div>
   </header>
   <div class="main">
     <aside class="sidebar">
-      <div class="sidebar-header"><button onclick="newConversation()">＋ 新对话</button></div>
+      <div class="sidebar-header"><button onclick="newConversation()"><i data-lucide="plus" style="width:14px;height:14px;vertical-align:-2px;"></i> 新对话</button></div>
       <div class="conv-list" id="conv-list"></div>
     </aside>
     <div class="chat">
       <div class="messages" id="messages"></div>
       <div class="input-row">
         <textarea id="query-input" placeholder="输入业务问题，Enter 发送" rows="1"></textarea>
+        <button class="tool-ico" id="mcp-btn" title="数据源 / MCP"><i data-lucide="plug"></i></button>
         <button id="send-btn" onclick="sendMessage()">发送</button>
+      </div>
+      <div class="mcp-pop" id="mcp-pop" style="display:none">
+        <div class="mcp-pop-head">已连接数据源</div>
+        <div id="mcp-list"></div>
       </div>
     </div>
   </div>
 </div>
 
-<script async src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script async src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<!-- 反馈弹框 + 复制提示 -->
+<div class="toast-copied" id="toast-copied">已复制</div>
+<div class="toast" id="toast"></div>
+<div class="feedback-modal" id="feedback-modal">
+  <div class="feedback-box">
+    <h3>反馈</h3>
+    <div class="sub">说说这次回答哪里有问题,帮助系统改进</div>
+    <textarea id="fb-text" placeholder="如:我问最差三个行,系统返回了全部排行"></textarea>
+    <div class="fb-row">
+      <button class="fb-cancel" onclick="closeFeedback()">取消</button>
+      <button class="fb-go" onclick="submitFeedback()">提交反馈</button>
+    </div>
+  </div>
+</div>
+<script src="/static/vendor/chart.umd.min.js"></script>
+<script src="/static/vendor/chartjs-plugin-datalabels.min.js"></script>
+<script src="/static/vendor/chartjs-plugin-zoom.min.js"></script>
+<script src="/static/vendor/lucide.min.js" onload="try{lucide.createIcons()}catch(e){}"></script>
 <script>
 // === State ===
 let token = localStorage.getItem('finance_token') || '';
@@ -166,6 +277,14 @@ function loadConversations() {
 function save() { localStorage.setItem(storageKey(), JSON.stringify(conversations)); localStorage.setItem('finance_token', token); }
 
 // === Auth ===
+// 头像:用户名首字,管理员主色蓝;悬停显示身份(行·岗)
+function setupAvatar(u) {
+  const av = document.getElementById('header-avatar');
+  if (!av || !u) return;
+  av.textContent = (u.username || '?').charAt(0).toUpperCase();
+  av.classList.toggle('admin', u.username === 'admin_total');
+  av.title = `${u.org_name || '未知机构'} · ${u.position || '未知岗位'}`;
+}
 function showPage(p) {
   document.querySelectorAll('.auth-page').forEach(e => e.style.display = 'none');
   document.getElementById('app-chat').classList.toggle('active', p === 'chat');
@@ -182,8 +301,7 @@ async function doLogin() {
   localStorage.setItem('finance_token',token);
   loadConversations();
   document.getElementById('header-username').textContent=userInfo.username;
-  document.getElementById('header-level').textContent=userInfo.level;
-  document.getElementById('header-position').textContent=userInfo.position;
+  setupAvatar(userInfo);
   const redirect = new URLSearchParams(location.search).get('redirect');
   if (redirect === 'audit') { location.href = '/static/audit.html'; return; }
   showPage('chat'); if(conversations.length===0) newConversation(); else { activeConvId=conversations[0].id; renderAll(); }
@@ -207,13 +325,87 @@ function newConversation() {
 function getConv() { return conversations.find(c => c.id === activeConvId); }
 function switchConv(id) { activeConvId = id; renderAll(); }
 function deleteConv(id) {
+  const wasActive = activeConvId === id;
   conversations = conversations.filter(c => c.id !== id);
-  if (activeConvId === id) activeConvId = conversations.length > 0 ? conversations[0].id : null;
-  save(); renderAll();
+  if (wasActive) activeConvId = conversations.length > 0 ? conversations[0].id : null;
+  save();
+  renderConvList();           // 列表总更新
+  if (wasActive) renderMessages();  // 只在删当前对话时才重渲染消息+图表
 }
 
 // === Render ===
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function toast(msg, type) { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast ' + (type || 'info'); t.style.display = 'block'; clearTimeout(t._tm); t._tm = setTimeout(() => t.style.display = 'none', 2600); }
+
+// emoji → lucide 映射(后端 stage 前缀 emoji,渲染时换正式图标;渲染后需 createIcons)
+const EMOJI_ICONS = {
+  '💭': 'message-square', '🔧': 'wrench', '📡': 'satellite', '✅': 'check', '✓': 'check',
+  '⚠️': 'triangle-alert', '❓': 'circle-help', '🚫': 'ban', '💡': 'lightbulb',
+  '🌐': 'globe', 'ℹ️': 'info', '⬇': 'download', '❌': 'x', '📝': 'file-text',
+};
+function iconize(s) {
+  const out = esc(s);
+  for (const [em, ic] of Object.entries(EMOJI_ICONS)) {
+    if (out.startsWith(em)) return `<i data-lucide="${ic}" class="stage-emoji"></i>` + out.slice(em.length);
+  }
+  return out;
+}
+// 渲染后统一调用:把所有 <i data-lucide> 替换为 svg 图标
+function refreshIcons() { try { if (window.lucide) lucide.createIcons(); } catch(e) {} }
+
+// 行内 md 渲染(只处理 **加粗**,用于按钮等紧凑场景;完整渲染用 mdLite)
+function mdInline(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
+
+// 轻量 markdown 渲染(模型输出常含 md 表格/加粗/列表;只做安全子集,不引库)
+// 支持: 表格 |a|b|、**加粗**、- 列表、### 小标题、换行
+function mdLite(s) {
+  if (!s) return '';
+  const lines = String(s).split(/\r?\n/);
+  let out = [], tableRows = [];
+  const flushTable = () => {
+    if (!tableRows.length) return;
+    const rows = tableRows.filter(r => !/^\|[\s:|-]+\|?$/.test(r.trim()));
+    if (rows.length) {
+      // 单元格也做 **加粗** 替换(esc 不处理 *,需在 esc 后手动替换)
+      const cell = c => esc(c.trim()).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+      const cells = r => r.trim().replace(/^\||\|$/g, '').split('|');
+      const head = cells(rows[0]);
+      out.push('<table class="result-table"><thead><tr>' + head.map(h => `<th>${cell(h)}</th>`).join('') + '</tr></thead><tbody>');
+      rows.slice(1).forEach(r => { out.push('<tr>' + cells(r).map(c => `<td>${cell(c)}</td>`).join('') + '</tr>'); });
+      out.push('</tbody></table>');
+    }
+    tableRows = [];
+  };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (/^\s*\|.*\|\s*$/.test(line)) { tableRows.push(line); continue; }
+    // 容忍表格内部的空行(flash 常在表格行间插空行):表已开始且遇空行→跳过不结束表格,
+    // 否则一张表被拆成多张小表,各自带 margin 视觉上就是"表格前后一堆空行"(2026-08-18 根因)
+    if (!line.trim() && tableRows.length) continue;
+    flushTable();
+    // md 语义:空行只是块分隔,不产生输出——连续空行不叠加 <br>(否则标题和表格间一长串空行)
+    if (!line.trim()) continue;
+    let h = esc(line);
+    h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    if (/^#{1,4}\s+/.test(h)) { h = `<div style="font-weight:600;margin-top:6px;">${h.replace(/^#{1,4}\s+/, '')}</div>`; }
+    else if (/^\s*[-*]\s+/.test(h)) { h = `<div style="padding-left:14px;text-indent:-10px;">• ${h.replace(/^\s*[-*]\s+/, '')}</div>`; }
+    out.push(h);
+  }
+  flushTable();
+  // 智能拼接:文本之间用 <br>,表格前后不加 <br>(表格自带 margin,加了会留大空行)
+  let result = '';
+  for (let j = 0; j < out.length; j++) {
+    const cur = out[j];
+    if (j > 0) {
+      const prev = out[j-1];
+      const curIsTable = cur.startsWith('<table');
+      const prevIsTable = prev.endsWith('</table>');
+      if (!curIsTable && !prevIsTable) result += '<br>';
+    }
+    result += cur;
+  }
+  return result;
+}
 
 function renderResultTable(data) {
   if (!data || !data.length) return '';
@@ -225,20 +417,90 @@ function renderResultTable(data) {
   h += '</tbody></table>'; return h;
 }
 
-// 思考过程渲染:streaming 时展开+当前步转圈;done 后自动收起,点头部切换展开/收起
-function renderThinking(m, i) {
+// CSV 导出:BOM+UTF-8 保证 Excel 中文不乱码;文件名取首行可读信息
+function exportCSV(rows, idx) {
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]);
+  const escCell = v => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = [keys.map(escCell).join(',')];
+  rows.forEach(r => lines.push(keys.map(k => escCell(r[k])).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  // 文件名:取前两列值拼接(通常是 机构/日期 或 日期/指标),无则用"查询结果"
+  const first = rows[0];
+  const nameSrc = keys.slice(0, 2).map(k => String(first[k] || '').replace(/[\\/:*?"<>|\s]/g, '')).filter(Boolean).join('_') || '查询结果';
+  a.download = nameSrc + '.csv';
+  a.href = url;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// === 气泡操作栏:复制/删除/反馈 ===
+function copyAnswer(i) {
+  const conv = getConv(); const m = conv && conv.messages[i];
+  if (!m) return;
+  const txt = m.final_answer || (m.result ? JSON.stringify(m.result, null, 2) : '') || m.report || '';
+  navigator.clipboard.writeText(txt).then(() => {
+    const t = document.getElementById('toast-copied');
+    t.style.display = 'block'; clearTimeout(t._tm);
+    t._tm = setTimeout(() => t.style.display = 'none', 1500);
+  });
+}
+function confirmDelete(i) {
+  const conv = getConv(); if (!conv) return;
+  if (!confirm('删除这条对话?')) return;
+  conv.messages.splice(i, 1);
+  save(); renderMessages(); renderConvList();
+}
+let _fbIdx = null;
+function openFeedback(i) {
+  const conv = getConv(); const m = conv && conv.messages[i];
+  if (m && m.feedbackSent) { toast('该回答已反馈过', 'info'); return; }
+  _fbIdx = i;
+  document.getElementById('fb-text').value = '';
+  document.getElementById('feedback-modal').classList.add('show');
+  setTimeout(() => document.getElementById('fb-text').focus(), 50);
+}
+function closeFeedback() {
+  document.getElementById('feedback-modal').classList.remove('show');
+  _fbIdx = null;
+}
+async function submitFeedback() {
+  try {
+    const conv = getConv();
+    const m = conv && conv.messages[_fbIdx];
+    if (!m) { toast('消息不存在', 'err'); return; }
+    const txt = document.getElementById('fb-text').value.trim();
+    if (!txt) { toast('请输入反馈内容', 'err'); return; }
+    if (!m.log_id) { toast('该消息无法关联反馈(旧消息)', 'err'); return; }
+    const r = await fetch('/api/query/feedback', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ log_id: m.log_id, feedback: txt })
+    });
+    const d = await r.json();
+    if (d.code === 0) { m.feedbackSent = true; save(); toast('反馈已提交,感谢', 'ok'); }
+    else toast(d.message || '提交失败', 'err');
+  } catch (e) { toast('提交失败: ' + e, 'err'); }
+  finally { closeFeedback(); }
+}
+function renderThinking(m, i, thinkingOnly) {
   if (!m.stages || !m.stages.length) return '';
-  const done = m.result !== null && m.result !== undefined || m.error || m.perm_rejected || m.missing_info;
-  const collapsed = done && !m.thinkOpen;  // thinkOpen 未设(falsy)→ 收起
+  const done = thinkingOnly ? false : (m.result !== null && m.result !== undefined || m.error || m.perm_rejected || m.missing_info || m.clarification || m.external_confirm || m.final_answer);
+  // 默认收起(只显示当前行);thinkingOnly 时也收起(只显示最新一行+转圈)
+  const collapsed = !m.thinkOpen;
   const head = done
-    ? `<div class="think-head clickable" onclick="toggleThinking(${i}, this)"><span class="chev">▶</span>思考完成(${m.stages.length}步)</div>`
-    : `<div class="think-head"><span class="chev" style="visibility:hidden">▶</span>思考中<span class="dots"><span></span><span></span><span></span></span></div>`;
+    ? `<div class="think-head clickable" onclick="toggleThinking(${i}, this)"><span class="chev"><i data-lucide="chevron-right"></i></span>思考完成(${m.stages.length}步)</div>`
+    : `<div class="think-head clickable" onclick="toggleThinking(${i}, this)"><span class="chev"><i data-lucide="chevron-right"></i></span>思考中(${m.stages.length}步)</div>`;
   let body = '<div class="stages">';
   m.stages.forEach((s, idx) => {
     const isLast = idx === m.stages.length - 1;
     const cur = done || !isLast ? 'done' : 'active';
-    const icon = (done || !isLast) ? '✓' : '<span class="spinner"></span>';
-    body += `<div class="stage ${cur}"><span class="stage-icon">${icon}</span>${esc(s)}</div>`;
+    const icon = (done || !isLast) ? '<i data-lucide="check" class="stage-check"></i>' : '<span class="spinner"></span>';
+    body += `<div class="stage ${cur}"><span class="stage-icon">${icon}</span>${iconize(s)}</div>`;
   });
   body += '</div>';
   return `<div class="thinking${done ? ' done' : ''}${collapsed ? ' collapsed' : ''}">${head}${body}</div>`;
@@ -255,43 +517,105 @@ function toggleThinking(i, el) {
 }
 
 // 增量更新最后一条消息(只动最后一行,不碰已有图表,避免重渲染闪烁)
-function updateLastBubble() {
+function updateLastBubble(thinkingOnly) {
   const conv = getConv();
   if (!conv || !conv.messages.length) return;
   const i = conv.messages.length - 1;
   const el = document.getElementById('messages');
   const row = el.lastElementChild;
-  if (row) row.outerHTML = msgHTML(conv.messages[i], i);
+  if (row) row.outerHTML = msgHTML(conv.messages[i], i, thinkingOnly);
   el.scrollTop = el.scrollHeight;
+  refreshIcons();
 }
 
-function msgHTML(m, i) {
-  if (m.role === 'user') return `<div class="msg-row user"><div class="avatar">👤</div><div class="bubble">${esc(m.content)}</div></div>`;
-  let h = `<div class="msg-row assistant"><div class="avatar">🤖</div><div class="bubble">`;
+// 点选消歧选项:以 refined_query 自动重发
+function pickClarify(refined) {
+  const input = document.getElementById('query-input');
+  input.value = refined;
+  sendMessage();
+}
+
+// 外部数据确认框:确认查询(携原文二轮) / 仅查内部(携空串二轮)
+function sendWithExternal(i, mode) {
+  const conv = getConv();
+  const m = conv && conv.messages[i];
+  if (!m || !m.external_confirm) return;
+  // 找到这条助手消息前面的用户问题
+  let userQ = '';
+  for (let k = i; k >= 0; k--) if (conv.messages[k].role === 'user') { userQ = conv.messages[k].content; break; }
+  if (!userQ) return;
+  const extQ = mode === 'go' ? (document.getElementById('ext-q-' + i) || {}).value : '';
+  doSend(userQ, mode === 'go' ? (extQ || '').trim() : '');
+}
+function keepExtDraft(i, v) {
+  const conv = getConv();
+  if (conv && conv.messages[i]) conv.messages[i].external_draft = v;
+}
+
+function msgHTML(m, i, thinkingOnly) {
+  if (m.role === 'user') return `<div class="msg-row user"><div class="avatar"><i data-lucide="user"></i></div><div class="bubble">${esc(m.content)}</div></div>`;
+  let h = `<div class="msg-row assistant"><div class="avatar"><i data-lucide="bot"></i></div><div class="bubble">`;
   // 思考过程(有 stage 时顶部展示)
-  h += renderThinking(m, i);
+  h += renderThinking(m, i, thinkingOnly);
+  // thinkingOnly 模式:只渲染思考流,不渲染结果数据(防中途表格闪烁)
+  if (thinkingOnly) { h += '</div></div>'; return h; }
+  // 消歧反问:黄色按钮组(优先级最高,替代一切结果渲染)
+  if (m.clarification) {
+    const c = m.clarification;
+    let opts = '';
+    (c.options || []).forEach(o => {
+      opts += `<div class="opt" onclick="pickClarify(decodeURIComponent('${encodeURIComponent(o.refined_query)}'))">${esc(o.label)}</div>`;
+    });
+    h += `<div class="clarify-box"><div class="q"><i data-lucide="circle-help" class="q-ic"></i> ${esc(c.question)}</div><div class="opts">${opts}</div></div>`;
+    h += '</div></div>'; return h;
+  }
+  // 外部数据确认框(已弃用,保留渲染兼容历史会话记录)
+  if (m.external_confirm) {
+    h += '<div class="note-line"><i data-lucide="globe" class="q-ic"></i> 外部数据已由系统自动查询(此确认框为旧版会话记录)</div>';
+    h += '</div></div>'; return h;
+  }
+  if (m.note) h += `<div class="note-line">ℹ️ ${esc(m.note)}</div>`;
+  if (m.external_source) h += `<div class="ext-badge"><i data-lucide="globe" class="q-ic"></i> 外部数据:${esc(m.external_source)}</div>`;
   if (m.error) {
     h += `<div class="error">${esc(m.error)}</div>`;
-  } else if (m.perm_rejected) {
-    h += `<div class="state-box perm"><span class="icon">🚫</span><span>${esc(m.hint || '您无权查询相关数据,已拦截。')}</span></div>`;
-  } else if (m.missing_info) {
-    h += `<div class="state-box missing"><span class="icon">💡</span><span>${esc(m.hint || '请补充关键查询信息后再试。')}</span></div>`;
-  } else if (m.result !== null && m.result !== undefined) {
-    if (m.result.length > 0) {
-      h += renderResultTable(m.result);
-      if (m._chartData) {
-        const c = m._chartData;
-        if (c.type === 'number') h += `<div class="big-number"><div class="val">${c.value||''}</div><div class="lbl">${c.title||''}</div></div>`;
-        else if (c.type && c.type !== 'table' && c.type !== 'none') h += `<div class="chart-wrap"><canvas id="chart-${i}"></canvas></div>`;
-      }
-      if (m.perm_filtered) h += '<div style="color:#d97706;font-size:12px;margin-top:4px;">⚠ 部分数据因权限被过滤</div>';
-      if (m.report) h += `<div class="report">📝 ${esc(m.report)}</div>`;
-    } else {
-      h += `<div class="state-box empty"><span class="icon">📭</span><span>${esc(m.hint || '无数据')}</span></div>`;
+    h += '</div></div>'; return h;
+  }
+  if (m.perm_rejected) {
+    h += `<div class="state-box perm"><span class="icon"><i data-lucide="ban"></i></span><span>${esc(m.hint || '您无权查询相关数据,已拦截。')}</span></div>`;
+    h += '</div></div>'; return h;
+  }
+  if (m.missing_info) {
+    h += `<div class="state-box missing"><span class="icon"><i data-lucide="lightbulb"></i></span><span>${esc(m.hint || '请补充关键查询信息后再试。')}</span></div>`;
+    h += '</div></div>'; return h;
+  }
+  // 顺序拼接:表格(如果有 result)→ 综合文本(含 md 表格)→ 图表(放文本下方,同一蓝气泡内)
+  if (m.result !== null && m.result !== undefined && m.result.length > 0) {
+    h += renderResultTable(m.result);
+    h += `<div class="export-csv" onclick="exportCSV(m_result(${i}))"><i data-lucide="download" style="width:12px;height:12px;"></i> 导出CSV</div>`;
+  }
+  if (m.perm_filtered) h += '<div style="color:#d97706;font-size:12px;margin-top:4px;display:flex;align-items:center;gap:4px;"><i data-lucide="triangle-alert" style="width:12px;height:12px;"></i>部分数据因权限被过滤</div>';
+  if (m.report) h += `<div class="report"><i data-lucide="file-text" class="q-ic"></i> ${mdLite(m.report)}</div>`;
+  if (m.final_answer) {
+    h += `<div class="report"><i data-lucide="sparkles" class="q-ic"></i> ${mdLite(m.final_answer)}</div>`;
+    // 图表放在综合文本下方(同一个蓝气泡内,表格之后)
+    if (m._chartData) {
+      const c = m._chartData;
+      if (c.type === 'number') h += `<div class="big-number" style="margin-top:8px;"><div class="val">${c.value||''}</div><div class="lbl">${c.title||''}</div></div>`;
+      else if (c.type && c.type !== 'table' && c.type !== 'none') h += `<div class="chart-wrap" style="margin-top:8px;"><canvas id="chart-${i}"></canvas></div>`;
     }
-  } else if (!m.stages || !m.stages.length) {
-    // 最早一刻还没收到任何 stage
+  }
+  // 无任何结果且无思考流:占位
+  if ((m.result === null || m.result === undefined) && !m.final_answer && !m.report
+      && (!m.stages || !m.stages.length)) {
     h += '<div class="think-head" style="color:#94a3b8;">思考中<span class="dots"><span></span><span></span><span></span></span></div>';
+  }
+  // 气泡底部操作栏:复制/删除/反馈(有实质内容时才显示)
+  if (m.final_answer || (m.result && m.result.length)) {
+    h += `<div class="action-bar">
+      <span class="act-ico" onclick="copyAnswer(${i})" title="复制"><i data-lucide="copy"></i></span>
+      <span class="act-ico" onclick="confirmDelete(${i})" title="删除"><i data-lucide="trash-2"></i></span>
+      <span class="act-ico" onclick="openFeedback(${i})" title="反馈"><i data-lucide="message-square-plus"></i></span>
+    </div>`;
   }
   h += '</div></div>'; return h;
 }
@@ -306,18 +630,66 @@ function renderConvList() {
   el.innerHTML = conversations.map(c => `<div class="conv-item${c.id===activeConvId?' active':''}" onclick="switchConv('${c.id}')">${c.title}<span class="del" onclick="event.stopPropagation();deleteConv('${c.id}')">×</span></div>`).join('');
 }
 
+// 示例问题(点击即发送;日期均在数据区间 2024-12-31~2026-04-30 内)
+// 外部/结合类选真实业务视角:LPR 影响净息差、房价关联按揭/不良、降准影响投放成本
+const SUGGESTIONS = [
+  { title: '行内指标', ico: 'landmark', items: [
+    'A市农商行2026年3月31日不良贷款率是多少',
+    '对比A市和B市农商行2025年12月31日的净利润',
+    'E市农商行2026年3月31日存贷比是多少'] },
+  { title: '外部数据', ico: 'globe', items: [
+    'LPR 2024年1月至2025年12月降了多少',
+    '2025年有哪些地产政策',
+    '江苏省经济形势怎么样'] },
+  { title: '内外结合', ico: 'link', items: [
+    'A市农商行2025年1月至12月净利息收入走势如何，这段时间LPR走势如何',
+    'B市农商行2025年7月至12月个人贷款余额有变化吗，这段时间房地产政策如何',
+    '对比13家农商行2025年12月31日不良贷款率，再看看江苏经济形势'] },
+  { title: '更多问题', ico: 'lightbulb', items: [
+    '13家农商行2026年4月30日各项贷款余额排名',
+    '从效益角度分析A市农商行2026年3月31日的指标'] },
+];
+
+function renderSuggestions(el) {
+  let h = '<div class="suggest-wrap"><div class="hello"><div class="t"><i data-lucide="sparkles" style="width:22px;height:22px;color:var(--primary-light);vertical-align:-4px;"></i> 金融问数</div>'
+    + '<div class="d">自然语言查行内指标 / 宏观数据 / 资讯政策，支持内外结合分析</div></div>';
+  SUGGESTIONS.forEach(g => {
+    h += `<div class="suggest-group"><div class="g-title"><i data-lucide="${g.ico}" style="width:14px;height:14px;"></i>${g.title}</div><div class="chips">`;
+    g.items.forEach(q => { h += `<div class="chip" onclick="pickSuggest(this)">${esc(q)}</div>`; });
+    h += '</div></div>';
+  });
+  h += '</div>';
+  el.innerHTML = h;
+  refreshIcons();
+}
+
+function pickSuggest(el) {
+  const input = document.getElementById('query-input');
+  input.value = el.textContent;
+  sendMessage();
+}
+
+// 供导出按钮 onclick 取消息结果行(msgHTML 作用域外)
+function m_result(i) {
+  const conv = getConv();
+  return (conv && conv.messages[i] && conv.messages[i].result) || [];
+}
+
 function renderMessages() {
   const conv = getConv();
   const el = document.getElementById('messages');
   if (!conv || !conv.messages.length) {
-    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-secondary);">👋 开始一段新的对话吧</div>';
+    renderSuggestions(el);
     return;
   }
   el.innerHTML = conv.messages.map((m, i) => msgHTML(m, i)).join('');
   el.scrollTop = el.scrollHeight;
+  refreshIcons();
   // 恢复图表
   setTimeout(() => {
     if (typeof Chart === 'undefined') { setTimeout(() => renderMessages(), 200); return; }
+    // 注册缩放插件(CDN加载的UMD全局对象)
+    try { if (typeof ChartZoom !== 'undefined') Chart.register(ChartZoom); } catch(e) {}
     conv.messages.forEach((m, i) => {
       if (m._chartData && m._chartData.type && m._chartData.type !== 'number' && m._chartData.type !== 'table' && m._chartData.type !== 'none') {
         const cv = document.getElementById('chart-' + i);
@@ -325,7 +697,8 @@ function renderMessages() {
           cv._charted = true;
           const c = m._chartData;
           const isBar = c.type === 'bar';
-          new Chart(cv, { type:c.type, data:{ labels:c.labels||[], datasets:[{ label:c.title||'', data:c.values||[], backgroundColor:c.type==='pie'?['#1e40af','#7c3aed','#db2777','#ea580c','#059669','#0891b2','#ca8a04','#4f46e5']:'#3b82f6', borderColor:'#1e40af', borderWidth:1 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ title:{ display:!!c.title, text:c.title }, legend:{ display:c.type==='pie' }, datalabels:{ anchor:'end', align:'top', font:{size:11}, formatter: v => v } }, scales:c.type!=='pie'?{ x:{ title:{ display:!!c.x_label, text:c.x_label } }, y:{ title:{ display:!!c.y_label, text:c.y_label }, beginAtZero: isBar } }:{} } });
+          const zoomOpts = { pan:{enabled:true,mode:'x'}, zoom:{wheel:{enabled:true}, drag:{enabled:true,backgroundColor:'rgba(59,130,246,.08)',borderColor:'#3b82f6',borderWidth:1}, mode:'x'} };
+          new Chart(cv, { type:c.type, data:{ labels:c.labels||[], datasets:[{ label:c.title||'', data:c.values||[], backgroundColor:c.type==='pie'?['#1e40af','#7c3aed','#db2777','#ea580c','#059669','#0891b2','#ca8a04','#4f46e5']:'#3b82f6', borderColor:'#1e40af', borderWidth:1 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ title:{ display:!!c.title, text:c.title }, legend:{ display:c.type==='pie' }, datalabels:{ anchor:'end', align:'top', font:{size:11}, formatter: v => v }, zoom: c.type==='pie' ? {} : zoomOpts }, scales:c.type!=='pie'?{ x:{ title:{ display:!!c.x_label, text:c.x_label } }, y:{ title:{ display:!!c.y_label, text:c.y_label }, beginAtZero: isBar } }:{} } });
         }
       }
     });
@@ -338,6 +711,12 @@ async function sendMessage() {
   const query = input.value.trim();
   if (!query || !token) return;
   input.value = ''; input.style.height = 'auto';
+  doSend(query, null);
+}
+
+// doSend:核心发送。externalQuery: null=首轮普通查询; ""=用户选仅内部; 非空=确认框原文
+async function doSend(query, externalQuery) {
+  if (!query || !token) return;
   document.getElementById('send-btn').disabled = true;
 
   let conv = getConv();
@@ -352,23 +731,25 @@ async function sendMessage() {
     for (let i = 0; i < hist.length - 1; i += 2) {
       const u = hist[i], a = hist[i+1];
       if (u && u.role === 'user' && a && a.role === 'assistant')
-        turns.push({ question: u.content, answer: (a.result && a.result.length) ? JSON.stringify(a.result).slice(0, 300) : (a.hint || a.error || '') });
+        turns.push({ question: u.content, answer: (a.result && a.result.length) ? JSON.stringify(a.result).slice(0, 300) : (a.final_answer || a.hint || a.error || '') });
     }
     // 最近3轮 + 强调最后一轮
     chatCtx = { history: turns.slice(-3), last_turn: turns[turns.length - 1] };
   }
 
-  // 添加用户消息 + AI 占位
+  // 添加用户消息 + AI 占位(二轮确认时用户消息为原问题,界面如实呈现)
   conv.messages.push({ role: 'user', content: query });
-  const assistMsg = { role: 'assistant', result: null, _chartData: null, report: '', error: '', perm_rejected: false, missing_info: false, perm_filtered: false, hint: '', stages: [] };
+  const assistMsg = { role: 'assistant', result: null, _chartData: null, report: '', error: '', perm_rejected: false, missing_info: false, perm_filtered: false, hint: '', stages: [], clarification: null, external_confirm: null, note: '', external_source: '', external_kind: '', final_answer: '', log_id: null, feedbackSent: false };
   conv.messages.push(assistMsg);
   renderAll();
 
   try {
+    const body = { query, chat_context: chatCtx };
+    if (externalQuery !== null) body.external_query = externalQuery;
     const resp = await fetch('/api/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ query, chat_context: chatCtx })
+      body: JSON.stringify(body)
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
@@ -384,16 +765,36 @@ async function sendMessage() {
         if (!line.startsWith('data:')) continue;
         try {
           const data = JSON.parse(line.slice(5).trim());
-          if (data.stage) { assistMsg.stages.push(data.stage); updateLastBubble(); }
+          if (data.log_id) assistMsg.log_id = data.log_id;
+          if (data.stage) { assistMsg.stages.push(data.stage); updateLastBubble(true); }
+          if (data.external_confirm) assistMsg.external_confirm = data.external_confirm;
+          if (data.clarification) assistMsg.clarification = data.clarification;
+          if (data.note) assistMsg.note = data.note;
+          if (data.external_source) assistMsg.external_source = data.external_source;
+          if (data.external_kind) assistMsg.external_kind = data.external_kind;
           if (data.error) assistMsg.error = data.error;
-          if (data.result !== undefined) assistMsg.result = data.result;
+          if (data.result !== undefined) {
+            // 累积:模型可能多次调用行内工具(每家银行查一次),每次透传 result,
+            // 后一次会覆盖前一次——累积行而非替换,让用户看到所有银行数据
+            if (Array.isArray(data.result) && data.result.length) {
+              if (Array.isArray(assistMsg.result)) {
+                assistMsg.result = assistMsg.result.concat(data.result);
+              } else {
+                assistMsg.result = data.result;
+              }
+            } else {
+              assistMsg.result = data.result;
+            }
+          }
           if (data.perm_rejected) assistMsg.perm_rejected = true;
           if (data.missing_info) assistMsg.missing_info = true;
           if (data.perm_filtered) assistMsg.perm_filtered = true;
           if (data.hint) assistMsg.hint = data.hint;
           if (data.chart) assistMsg._chartData = data.chart;
           if (data.report) assistMsg.report = data.report;
-          updateLastBubble();
+          if (data.final_answer) assistMsg.final_answer = data.final_answer;
+          // result/chart/report/final_answer 只累积不渲染,流结束 renderMessages 一次性画
+          // 只有 stage 实时更新思考流(第578行已处理)
         } catch(_) {}
       }
     }
@@ -404,6 +805,31 @@ async function sendMessage() {
   save(); renderConvList();
   document.getElementById('send-btn').disabled = false;
 }
+
+// === MCP 数据源浮层 ===
+async function toggleMcpPop() {
+  const pop = document.getElementById('mcp-pop');
+  if (pop.style.display !== 'none') { pop.style.display = 'none'; return; }
+  pop.style.display = 'block';
+  const list = document.getElementById('mcp-list');
+  list.innerHTML = '<div style="padding:14px;color:#94a3b8;font-size:13px;">加载中…</div>';
+  try {
+    const r = await fetch('/api/tools/mcp', { headers: { 'Authorization': 'Bearer ' + token } });
+    const d = await r.json();
+    if (!d.length) { list.innerHTML = '<div style="padding:14px;color:#94a3b8;font-size:13px;">暂无已配置数据源</div>'; return; }
+    list.innerHTML = d.map(m => {
+      const tools = (m.tools || []).map(t =>
+        `<div class="mi-tool"><span>•</span><span class="t-name">${esc(t.tool)}</span><span>${esc(t.label)}</span></div>`).join('');
+      return `<div class="mcp-item"><div class="mi-top"><span class="mi-dot ${m.enabled ? '' : 'off'}"></span><span class="mi-name">${esc(m.name)}</span></div>${tools}</div>`;
+    }).join('');
+  } catch (e) { list.innerHTML = '<div style="padding:14px;color:#dc2626;font-size:13px;">加载失败</div>'; }
+}
+// 点 icon 切换浮层;点外部关闭
+document.getElementById('mcp-btn').addEventListener('click', e => { e.stopPropagation(); toggleMcpPop(); });
+document.addEventListener('click', e => {
+  const pop = document.getElementById('mcp-pop');
+  if (pop.style.display !== 'none' && !pop.contains(e.target) && e.target.id !== 'mcp-btn') pop.style.display = 'none';
+});
 
 // === Init ===
 const qi = document.getElementById('query-input');
@@ -416,8 +842,8 @@ if (token) {
       if (d.code === 0 && d.data) {
         userInfo = d.data.user;
         document.getElementById('header-username').textContent = userInfo.username;
-        document.getElementById('header-level').textContent = userInfo.level;
-        document.getElementById('header-position').textContent = userInfo.position;
+        setupAvatar(userInfo);
+        loadConversations();
         showPage('chat');
         if (conversations.length) { activeConvId = conversations[0].id; renderAll(); }
         else newConversation();

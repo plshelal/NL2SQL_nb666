@@ -5,12 +5,6 @@ from app.models.qdrant.column_info_qdrant import ColumnInfoQdrant
 from app.models.qdrant.metric_info_qdrant import MetricInfoQdrant
 
 
-class DateInfoState(TypedDict):
-    date: str
-    weekday: str
-    quarter: str
-
-
 class DBInfoState(TypedDict):
     version: str
     dialect: str
@@ -60,9 +54,16 @@ class DataAgentState(TypedDict):
     retrieved_values:list[ValueInfoEs]
     table_infos:list[TableInfoState]
     metric_infos:list[MetricInfoState]
-    date_info:DateInfoState
     db_info:DBInfoState
     sql:str
     start_time: float
     log_id: int
     retry_count: int
+    route: str
+    external_query: str
+    external_queries: list
+    schema_mode: str
+    awaiting_clarification: bool
+    clarification: dict
+    assumed_interpretation: str
+    external_result: list
