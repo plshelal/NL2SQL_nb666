@@ -43,12 +43,14 @@ async def list_query_review(status: str = "pending", user=Depends(get_current_us
     status: pending(待复核) / correct / problem。
     卡片展示 问题+SQL+结果摘要+用户反馈(预填问题描述栏)。"""
     _require_admin(user)
-    if status not in ("pending", "correct", "problem"):
+    if status not in ("pending", "correct", "problem", "ignored"):
         raise HTTPException(400, "status 非法")
     r = await session.execute(text(
         "SELECT id, username, query_text, generated_sql, result_summary, "
         "feedback, review_status, review_note, tool_trace, created_at FROM query_log "
-        "WHERE review_status=:s ORDER BY created_at DESC LIMIT 100"
+        "WHERE username != 'agent' "
+        "AND (review_status=:s OR (:s='pending' AND (review_status IS NULL OR review_status='pending'))) "
+        "ORDER BY created_at DESC LIMIT 100"
     ), {"s": status})
     out = []
     for x in r.fetchall():
@@ -64,6 +66,34 @@ async def list_query_review(status: str = "pending", user=Depends(get_current_us
     return out
 
 
+@review_router.post("/api/knowledge/query-review/clear")
+async def clear_reviewed(body=Body(...), user=Depends(get_current_user),
+                         session: AsyncSession = Depends(get_meta_session)):
+    """一键清空指定 tab 的数据。
+    {tab: 'rejected' | 'ignored'}
+    rejected → DELETE query_log WHERE review_status='problem' + DELETE distilled_rules WHERE status='rejected'
+    ignored  → DELETE query_log WHERE review_status='ignored'
+    """
+    _require_admin(user)
+    tab = (body or {}).get("tab")
+    deleted = 0
+    if tab == "rejected":
+        r1 = await session.execute(text(
+            "DELETE FROM query_log WHERE review_status='problem'"))
+        r2 = await session.execute(text(
+            "DELETE FROM distilled_rules WHERE status='rejected'"))
+        deleted = r1.rowcount + r2.rowcount
+    elif tab == "ignored":
+        r1 = await session.execute(text(
+            "DELETE FROM query_log WHERE review_status='ignored'"))
+        deleted = r1.rowcount
+    else:
+        raise HTTPException(400, "tab 非法(rejected/ignored)")
+    await session.commit()
+    logger.info(f"[审核] 清空 {tab} tab,删除 {deleted} 条")
+    return {"ok": True, "deleted": deleted}
+
+
 @review_router.post("/api/knowledge/query-review/{qid}")
 async def review_query(qid: int, body=Body(...), user=Depends(get_current_user),
                        session: AsyncSession = Depends(get_meta_session)):
@@ -71,7 +101,7 @@ async def review_query(qid: int, body=Body(...), user=Depends(get_current_user),
     correct → 该查询的 问句→SQL 回灌 fewshot 检索池;problem → 进 agent 分析池。"""
     _require_admin(user)
     new_status = body.get("status")
-    if new_status not in ("correct", "problem"):
+    if new_status not in ("correct", "problem", "pending", "ignored"):
         raise HTTPException(400, "status 非法")
     note = body.get("note")
     # 取该查询的问题+SQL(回灌用)
@@ -200,128 +230,6 @@ async def review_one(rid: int, body=Body(...), user=Depends(get_current_user),
             logger.warning(f"[审核] fewshot 回灌失败(不阻断审核): {e}")
             feedback = {"ok": False, "reason": str(e)}
     return {"ok": True, "feedback": feedback}
-
-
-@review_router.post("/api/knowledge/distill")
-async def distill(user=Depends(get_current_user),
-                  session: AsyncSession = Depends(get_meta_session)):
-    """在线挖矿:从 experience_log 蒸馏两类候选 → 写 pending。
-
-    - fewshot:success 行的 (query_text, final_sql) 直接成问答范例候选
-    - avoidance:correction_event 行的 (问句, 原错SQL, 报错, 纠对SQL) 成失败规避候选
-      (correct_sql 写经验日志时 error_message="orig=<bad> | err=<err>",final_sql=纠对SQL)
-    去重:trigger_pattern(问句前 80 字)按类型查重。
-    """
-    _require_admin(user)
-    # 已有待审规则的 trigger,按类型分桶去重
-    exist = await session.execute(text(
-        "SELECT rule_type, trigger_pattern FROM distilled_rules "
-        "WHERE status='pending' AND rule_type IN ('fewshot','avoidance')"))
-    seen_fs = set()
-    seen_av = set()
-    for x in exist.fetchall():
-        (seen_fs if x.rule_type == "fewshot" else seen_av).add(x.trigger_pattern)
-
-    new_fs = 0
-    # ---- fewshot:success 行 ----
-    r = await session.execute(text(
-        "SELECT query_text, final_sql FROM experience_log "
-        "WHERE outcome='success' AND final_sql IS NOT NULL AND final_sql!='' "
-        "ORDER BY id DESC LIMIT 500"
-    ))
-    succ_rows = r.fetchall()
-    for row in succ_rows:
-        q = (row.query_text or "").strip()
-        s = (row.final_sql or "").strip()
-        if not q or not s or not re.search(r"SELECT|WITH", s, re.IGNORECASE):
-            continue
-        trig = q[:80]
-        if trig in seen_fs:
-            continue
-        seen_fs.add(trig)
-        await session.execute(text(
-            "INSERT INTO distilled_rules (rule_type, trigger_pattern, action, "
-            "source, confidence, status, evidence_count) "
-            "VALUES ('fewshot', :t, :a, 'auto_distilled', 0.6, 'pending', 1)"),
-            {"t": trig, "a": json.dumps({"question": q, "sql": s}, ensure_ascii=False)})
-        new_fs += 1
-
-    # ---- avoidance:correction_event 行(含原错SQL/报错/纠对SQL 三元组)----
-    new_av = 0
-    r2 = await session.execute(text(
-        "SELECT query_text, final_sql, error_message FROM experience_log "
-        "WHERE outcome='correction_event' AND final_sql IS NOT NULL "
-        "AND error_message LIKE 'orig=%' ORDER BY id DESC LIMIT 300"
-    ))
-    for row in r2.fetchall():
-        em = row.error_message or ""
-        m = re.match(r"orig=(.*?)\s*\|\s*err=(.*)", em, re.S)
-        if not m:
-            continue
-        bad, err = m.group(1).strip(), m.group(2).strip()
-        q = (row.query_text or "").strip()
-        good = (row.final_sql or "").strip()
-        if not bad or not good:
-            continue
-        trig = q[:80]
-        if trig in seen_av:
-            continue
-        seen_av.add(trig)
-        await session.execute(text(
-            "INSERT INTO distilled_rules (rule_type, trigger_pattern, action, "
-            "source, confidence, status, evidence_count) "
-            "VALUES ('avoidance', :t, :a, 'auto_distilled', 0.7, 'pending', 1)"),
-            {"t": trig, "a": json.dumps({"question": q, "bad_sql": bad,
-                                         "good_sql": good, "error": err},
-                                        ensure_ascii=False)})
-        new_av += 1
-
-    await session.commit()
-    new = new_fs + new_av
-    logger.info(f"[挖矿] fewshot {new_fs} + avoidance {new_av} = {new} 条候选")
-    return {"new": new, "fewshot": new_fs, "avoidance": new_av,
-            "msg": f"挖出 fewshot {new_fs} + avoidance {new_av} 条候选"}
-
-
-@review_router.post("/api/knowledge/demo-seed")
-async def demo_seed(user=Depends(get_current_user),
-                    session: AsyncSession = Depends(get_meta_session)):
-    """填充演示条目(仅当 pending 为空时,source 标记 demo 便于清理)。
-
-    让审核界面在经验日志尚未积累时也能演示完整 approve/reject 流程。
-    """
-    _require_admin(user)
-    cur = await session.execute(text(
-        "SELECT COUNT(*) AS n FROM distilled_rules WHERE status='pending'"))
-    if cur.scalar() > 0:
-        return {"ok": False, "msg": "已有待审条目,无需填充演示数据"}
-    samples = [
-        ("fewshot", "A市农商行2026年3月31日不良贷款率是多少",
-         json.dumps({"question": "A市农商行2026年3月31日不良贷款率是多少",
-                     "sql": "SELECT o.org_name, d.index_value AS 不良贷款率, il.index_unit AS 单位 "
-                            "FROM index_data d JOIN org_info o ON d.org_code=o.org_code "
-                            "JOIN index_list il ON d.index_name=il.index_name "
-                            "WHERE o.org_name='江苏省A市农商行' AND d.index_name='不良贷款率' "
-                            "AND d.data_date='2026-03-31'"}, ensure_ascii=False)),
-        ("alias", "人均创利",
-         json.dumps({"alias": "人均创利", "indicator": "人均利润",
-                     "samples": ["E市农商行人均创利多少", "人均净利润排名"]},
-                    ensure_ascii=False)),
-        ("tool_choice", "CPI/利率/PPI",
-         json.dumps({"hint": "问句含「CPI/利率/PPI」时推荐调用 query_macro_indicator",
-                     "tool": "query_macro_indicator", "success_count": 5},
-                    ensure_ascii=False)),
-    ]
-    for rtype, trig, action in samples:
-        await session.execute(text(
-            "INSERT INTO distilled_rules (rule_type, trigger_pattern, action, "
-            "source, confidence, status, evidence_count) "
-            "VALUES (:rt, :t, :a, 'demo', :c, 'pending', :e)"),
-            {"rt": rtype, "t": trig, "a": action,
-             "c": 0.8 if rtype != "fewshot" else 0.6, "e": 3})
-    await session.commit()
-    logger.info("[审核] 填充 3 条演示条目(source=demo)")
-    return {"ok": True, "msg": "已填充 3 条演示条目"}
 
 
 # ======================== 知识总览 ========================

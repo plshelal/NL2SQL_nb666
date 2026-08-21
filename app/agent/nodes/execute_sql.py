@@ -177,7 +177,8 @@ async def _write_audit(runtime: Runtime[DataAgentContext], state: DataAgentState
     try:
         meta_repo = runtime.context["meta_mysql_repository"]
         await meta_repo.session.execute(text(
-            "UPDATE query_log SET generated_sql=:s, result_data=:r, is_rejected=:p WHERE id=:i"
+            "UPDATE query_log SET generated_sql=:s, result_data=:r, is_rejected=:p, "
+            "review_status=IF(:p=0,'pending',review_status) WHERE id=:i"
         ), {"s": sql,
             "r": json.dumps(result, ensure_ascii=False) if result else "[]",
             "p": 1 if rejected else 0,

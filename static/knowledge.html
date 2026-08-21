@@ -323,6 +323,7 @@ table.matrix td:first-child { text-align: left; font-weight: 600; }
             <div class="tab active" id="rt-pending" onclick="setRTab('pending')">待审<span class="n" id="cnt-pending"></span></div>
             <div class="tab" id="rt-approved" onclick="setRTab('approved')">已生效<span class="n" id="cnt-approved"></span></div>
             <div class="tab" id="rt-rejected" onclick="setRTab('rejected')">已驳回<span class="n" id="cnt-rejected"></span></div>
+            <div class="tab" id="rt-ignored" onclick="setRTab('ignored')">已忽略<span class="n" id="cnt-ignored"></span></div>
           </div>
           <span style="flex:1"></span>
           <div id="batch-bar" style="display:flex;gap:8px;">
@@ -330,8 +331,7 @@ table.matrix td:first-child { text-align: left; font-weight: 600; }
             <button class="btn ok sm" onclick="batchReview('approved')">批量通过</button>
             <button class="btn no sm" onclick="batchReview('rejected')">批量驳回</button>
           </div>
-          <button class="btn ghost sm" onclick="doDistill()"><i data-lucide="pickaxe" style="width:12px;height:12px;vertical-align:-2px;"></i> 挖矿</button>
-          <button class="btn ghost sm" onclick="demoSeed()">填充演示数据</button>
+          <button class="btn no sm" id="clear-btn" style="display:none;" onclick="clearTab()"><i data-lucide="trash-2" style="width:12px;height:12px;vertical-align:-2px;"></i> 一键清空</button>
         </div>
         <div id="review-list"></div>
       </div>
@@ -554,9 +554,17 @@ async function loadCounts() {
   badge.textContent = p.length; badge.style.display = p.length ? 'flex' : 'none';
 }
 function setRTab(t) { reviewTab = t; selected.clear();
-  ['pending', 'approved', 'rejected'].forEach(x => { const e = document.getElementById('rt-' + x); if (e) e.classList.toggle('active', x === t); });
+  ['pending', 'approved', 'rejected', 'ignored'].forEach(x => { const e = document.getElementById('rt-' + x); if (e) e.classList.toggle('active', x === t); });
   document.getElementById('batch-bar').style.display = t === 'pending' ? 'flex' : 'none';
+  document.getElementById('clear-btn').style.display = (t === 'rejected' || t === 'ignored') ? 'inline-flex' : 'none';
   loadReview();
+}
+
+async function clearTab() {
+  if (!confirm(`确认清空"${reviewTab === 'rejected' ? '已驳回' : '已忽略'}"的全部条目?此操作不可恢复。`)) return;
+  const d = await api('/api/knowledge/query-review/clear', { method: 'POST', body: JSON.stringify({ tab: reviewTab }) });
+  toast(`已清空 ${d.deleted} 条`, 'ok');
+  refreshReview();
 }
 
 // 待审:用户反馈查询(在前)+规则候选(在后)合并渲染
@@ -570,45 +578,73 @@ async function loadReview() {
     ]);
     reviewData = rules;
     if (!queries.length && !rules.length) {
-      el.innerHTML = `<div class="card empty-box"><div class="ico"><i data-lucide="inbox" style="width:32px;height:32px;"></i></div>暂无待审条目 — 用户反馈或点「挖矿」积累候选</div>`;
+      el.innerHTML = `<div class="card empty-box"><div class="ico"><i data-lucide="inbox" style="width:32px;height:32px;"></i></div>暂无待审条目 — 等用户反馈后自动出现</div>`;
       refreshIcons();
       return;
     }
     cards = queries.map(q => qCardHTML(q)).concat(rules.map(r => cardHTML(r)));
   } else {
-    const data = await api('/api/knowledge/review?status=' + reviewTab);
-    reviewData = data;
-    if (!data.length) {
+    // 已生效/已驳回/已忽略:加载 query_log(对应 correct/problem/ignored) + distilled_rules
+    const qStatus = reviewTab === 'approved' ? 'correct' : reviewTab === 'rejected' ? 'problem' : 'ignored';
+    const [queries, rules] = await Promise.all([
+      api('/api/knowledge/query-review?status=' + qStatus).catch(() => []),
+      api('/api/knowledge/review?status=' + reviewTab)
+    ]);
+    reviewData = rules;
+    if (!queries.length && !rules.length) {
       el.innerHTML = `<div class="card empty-box"><div class="ico"><i data-lucide="inbox" style="width:32px;height:32px;"></i></div>暂无记录</div>`;
       refreshIcons();
       return;
     }
-    cards = data.map(r => cardHTML(r));
+    cards = queries.map(q => qCardHTML(q)).concat(rules.map(r => cardHTML(r)));
   }
   el.innerHTML = cards.join('');
   refreshIcons();
 }
 
 // 用户反馈卡片:问题+SQL只读+工具链+反馈+通过/驳回/修改(↔完成)
+// 非 pending tab 只显示"撤销"按钮(回退到 pending,保留反馈)
 function qCardHTML(q) {
+  const isPending = reviewTab === 'pending';
+  const hasFeedback = !!(q.feedback && q.feedback.trim());
+  const rejectDisabled = hasFeedback ? '' : 'disabled style="opacity:.4;cursor:not-allowed;" title="驳回需先点修改填写问题描述"';
+  const badgeText = hasFeedback ? '用户反馈' : '查询记录';
+  const actions = isPending ? `
+    <div class="rc-actions">
+      <button class="btn sm ok" onclick="qReview(${q.id}, 'correct')"><i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;"></i> 通过</button>
+      <button class="btn sm no" id="qrej-${q.id}" ${rejectDisabled} onclick="qReview(${q.id}, 'problem')"><i data-lucide="x" style="width:12px;height:12px;vertical-align:-2px;"></i> 驳回</button>
+      <button class="btn sm ghost" onclick="qReview(${q.id}, 'ignored')"><i data-lucide="minus-circle" style="width:12px;height:12px;vertical-align:-2px;"></i> 忽略</button>
+      <button class="btn sm ghost" id="qedit-${q.id}" onclick="qToggleEdit(${q.id})"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-2px;"></i> 修改</button>
+    </div>` : `
+    <div class="rc-actions">
+      <button class="btn sm ghost" onclick="qReview(${q.id}, 'pending')"><i data-lucide="undo-2" style="width:12px;height:12px;vertical-align:-2px;"></i> 撤销</button>
+    </div>`;
   return `<div class="card review-card" id="qc-${q.id}"><div class="body">
     <div class="rc-head">
-      <span class="type-badge tool_choice">用户反馈</span>
+      <span class="type-badge tool_choice">${badgeText}</span>
       <span class="meta-line">${esc(q.username||'')} · ${esc((q.time||'').slice(0,16))} · #${q.id}</span>
     </div>
     <div class="q-line"><i data-lucide="circle-help" style="width:14px;height:14px;vertical-align:-2px;color:var(--primary);"></i> ${esc(q.question)}</div>
     ${q.sql ? `<div class="sql-block">${hlSQL(q.sql)}</div>` : ''}
-    ${q.tool_trace ? `<div class="kv">工具调用链:<b>${esc(q.tool_trace)}</b></div>` : ''}
+    ${q.tool_trace ? `<div class="kv"><b style="display:block;margin-bottom:4px;">工具调用链:</b><span style="font-family:'Cascadia Code',Consolas,monospace;font-size:11px;color:var(--text-secondary);word-break:break-all;line-height:1.6;">${esc(q.tool_trace)}</span></div>` : ''}
     ${q.feedback ? `<div class="q-line" style="color:#c2410c;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:8px 12px;margin-top:8px;"><i data-lucide="message-square-plus" style="width:14px;height:14px;vertical-align:-2px;"></i> 用户反馈: ${esc(q.feedback)}</div>` : ''}
-    <div class="rc-actions">
-      <button class="btn sm ok" onclick="qReview(${q.id}, 'correct')"><i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;"></i> 通过</button>
-      <button class="btn sm no" onclick="qReview(${q.id}, 'problem')"><i data-lucide="x" style="width:12px;height:12px;vertical-align:-2px;"></i> 驳回</button>
-      <button class="btn sm ghost" id="qedit-${q.id}" onclick="qToggleEdit(${q.id})"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-2px;"></i> 修改</button>
-    </div>
-    <div class="edit-area" id="qea-${q.id}" style="display:none;margin-top:10px;">
-      <textarea id="qeat-${q.id}" placeholder="补充问题描述" style="width:100%;min-height:70px;border:1px solid var(--primary-light);border-radius:8px;padding:10px;font-size:13px;outline:none;background:#f8faff;font-family:inherit;">${esc(q.feedback||'')}</textarea>
-    </div>
+    ${q.review_note ? `<div class="kv">审核备注:<b>${esc(q.review_note)}</b></div>` : ''}
+    ${actions}
+    ${isPending ? `<div class="edit-area" id="qea-${q.id}" style="display:none;margin-top:10px;">
+      <textarea id="qeat-${q.id}" placeholder="补充问题描述" oninput="toggleReject(${q.id})" style="width:100%;min-height:70px;border:1px solid var(--primary-light);border-radius:8px;padding:10px;font-size:13px;outline:none;background:#f8faff;font-family:inherit;">${esc(q.feedback||'')}</textarea>
+    </div>` : ''}
   </div></div>`;
+}
+// 驳回按钮联动:输入框有文字才可点
+function toggleReject(qid) {
+  const ta = document.getElementById('qeat-' + qid);
+  const btn = document.getElementById('qrej-' + qid);
+  if (!ta || !btn) return;
+  const has = ta.value.trim().length > 0;
+  btn.disabled = !has;
+  btn.style.opacity = has ? '' : '.4';
+  btn.style.cursor = has ? '' : 'not-allowed';
+  btn.title = has ? '' : '驳回需先填写问题描述';
 }
 function qToggleEdit(qid) {
   const ea = document.getElementById('qea-' + qid);
@@ -623,9 +659,8 @@ function qToggleEdit(qid) {
 }
 async function qReview(qid, status) {
   const note = (document.getElementById('qeat-' + qid) || {}).value || '';
-  if (status === 'problem' && !note.trim()) { toast('驳回需先点「修改」填写问题描述', 'err'); return; }
   await api('/api/knowledge/query-review/' + qid, { method: 'POST', body: JSON.stringify({ status, note }) });
-  toast(status === 'correct' ? '已通过,SQL 回灌范例池' : '已驳回,待 agent 分析', 'ok');
+  toast(status === 'correct' ? '已通过,SQL 回灌范例池' : status === 'problem' ? '已驳回' : status === 'ignored' ? '已忽略' : '已撤销,回到待审', 'ok');
   loadReview();
 }
 function cardHTML(r) {
@@ -673,7 +708,7 @@ function bodyHTML(r) {
 }
 function actionsHTML(r) {
   if (reviewTab !== 'pending')
-    return `<div class="rc-actions"><button class="btn sm ghost" onclick="reReview(${r.id}, '${reviewTab === 'approved' ? 'rejected' : 'approved'}')">${reviewTab === 'approved' ? '撤销并驳回' : '撤销并通过'}</button></div>`;
+    return `<div class="rc-actions"><button class="btn sm ghost" onclick="reReview(${r.id}, 'pending')"><i data-lucide="undo-2" style="width:12px;height:12px;vertical-align:-2px;"></i> 撤销</button></div>`;
   return `<div class="rc-actions">
     <button class="btn sm ok" onclick="reviewOne(${r.id}, 'approved')"><i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;"></i> 通过</button>
     <button class="btn sm no" onclick="reviewOne(${r.id}, 'rejected')"><i data-lucide="x" style="width:12px;height:12px;vertical-align:-2px;"></i> 驳回</button>
@@ -710,16 +745,6 @@ async function batchReview(status) {
   await api('/api/knowledge/review/batch', { method: 'POST', body: JSON.stringify({ ids: [...selected], status }) });
   toast(`批量${status === 'approved' ? '通过' : '驳回'} ${selected.size} 条`, 'ok');
   selected.clear(); refreshReview();
-}
-async function doDistill() {
-  const d = await api('/api/knowledge/distill', { method: 'POST' });
-  toast(d.msg || ('挖出 ' + d.new + ' 条'), d.new > 0 ? 'ok' : 'info');
-  refreshReview();
-}
-async function demoSeed() {
-  const d = await api('/api/knowledge/demo-seed', { method: 'POST' });
-  toast(d.msg, d.ok ? 'ok' : 'info');
-  refreshReview();
 }
 function refreshReview() { loadCounts(); loadReview(); }
 
@@ -1085,7 +1110,7 @@ function renderTimeline() {
   const tl = (t.timeline || []).slice(-20);
   const maxT = Math.max(1, ...tl.map(d => d.total || 0));
   const el = document.getElementById('tl-chart');
-  if (!tl.length) { el.innerHTML = '<div style="padding:20px;color:#94a3b8;text-align:center;">暂无经验记录,用户查询后点「挖矿」积累</div>'; return; }
+  if (!tl.length) { el.innerHTML = '<div style="padding:20px;color:#94a3b8;text-align:center;">暂无经验记录,用户查询后自动积累</div>'; return; }
   const leg = '<div class="tl-legend"><span><i style="background:#059669"></i>成功</span><span><i style="background:#f59e0b"></i>纠错后成功</span><span><i style="background:#ea580c"></i>纠错事件</span><span><i style="background:#dc2626"></i>失败</span></div>';
   let bars = '';
   tl.forEach(d => {
@@ -1100,11 +1125,7 @@ function renderTimeline() {
 // ============ 启动 ============
 renderExpr();
 // 图标自动渲染:监听 DOM 变化,debounce 后统一 createIcons(幂等,兜底所有动态渲染)
-let _iconTimer = null;
-new MutationObserver(() => {
-  if (_iconTimer) clearTimeout(_iconTimer);
-  _iconTimer = setTimeout(refreshIcons, 100);
-}).observe(document.body, { childList: true, subtree: true });
+// 图标刷新:在各渲染函数末尾显式调 refreshIcons(),不用 MutationObserver(会和 createIcons 的 DOM 改动形成死循环)
 init();
 </script>
 </body>
