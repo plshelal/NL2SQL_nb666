@@ -158,8 +158,12 @@ async def run_agent_query(question: str, ctx: DataAgentContext, writer,
     from app.agent.knowledge_feedback import get_prompt_block, get_semantic_hints
     prompt_block = await get_prompt_block()
     semantic_hints = await get_semantic_hints(question)
+    # 注入当前日期,让 Agent 能解析"这个月""上个月""最近"等时间词
+    from datetime import datetime as _dt
+    _today = _dt.now().strftime("%Y年%m月%d日")
+    _date_info = f'\n\n【系统时间】今天是 {_today}。用户说"这个月""最近""上个月"等时间词时,据此推算具体年月。'
     agent = create_react_agent(llm, [grp_tool, read_tool, fml_tool, fin_tool, ext_macro, ext_news],
-                               prompt=SYSTEM_PROMPT + prompt_block + semantic_hints)
+                               prompt=SYSTEM_PROMPT + _date_info + prompt_block + semantic_hints)
 
     tool_trace: list[str] = []
     final_text = ""
@@ -333,35 +337,37 @@ async def _macro_impl(query, ctx, writer):
     from app.agent.tools.tool_executor import ExternalToolExecutor
     executor = ExternalToolExecutor()
     result = await executor.query_edb(query)
-    await _audit_ext(ctx, "query_macro_indicator", query, bool(result))
-    if not result:
-        return json.dumps({"status": "no_data", "note": "EDB 未返回数据,建议更换指标名或时间范围"},
-                          ensure_ascii=False)
-    return json.dumps({"status": "ok", "source": result.get("source", ""),
+    ret = (json.dumps({"status": "ok", "source": result.get("source", ""),
                        "markdown": result.get("markdown", "")[:2000],
                        "rows": result.get("rows", [])[:30]}, ensure_ascii=False)
+           if result else
+           json.dumps({"status": "no_data", "note": "EDB 未返回数据,建议更换指标名或时间范围"}, ensure_ascii=False))
+    await _audit_ext(ctx, "query_macro_indicator", query, bool(result), ret)
+    return ret
 
 
 async def _news_impl(query, ts, te, ctx, writer):
     from app.agent.tools.tool_executor import ExternalToolExecutor
     executor = ExternalToolExecutor()
     result = await executor.query_news(query, ts, te)
-    await _audit_ext(ctx, "search_financial_news", query, bool(result))
-    if not result:
-        return json.dumps({"status": "no_data", "note": "资讯源未返回结果"}, ensure_ascii=False)
-    return json.dumps({"status": "ok", "source": result.get("source", ""),
+    ret = (json.dumps({"status": "ok", "source": result.get("source", ""),
                        "items": result.get("rows", [])[:5]}, ensure_ascii=False)
+           if result else
+           json.dumps({"status": "no_data", "note": "资讯源未返回结果"}, ensure_ascii=False))
+    await _audit_ext(ctx, "search_financial_news", query, bool(result), ret)
+    return ret
 
 
-async def _audit_ext(ctx, tool_name: str, query: str, ok: bool):
+async def _audit_ext(ctx, tool_name: str, query: str, ok: bool, result_json: str = ""):
     try:
         from sqlalchemy import text as _t
         from app.clients.mysql_client_manager import meta_mysql_client_manager
         async with meta_mysql_client_manager.session_factory() as s:
             await s.execute(_t(
-                "INSERT INTO query_log (username, query_text, generated_sql, result_status) "
-                "VALUES (:u,:q,:t,:s)"),
+                "INSERT INTO query_log (username, query_text, generated_sql, result_data, result_status) "
+                "VALUES (:u,:q,:t,:r,:s)"),
                 {"u": "agent", "q": query, "t": f"[{tool_name}] {query}",
+                 "r": result_json[:5000] if result_json else None,
                  "s": "external_ok" if ok else "external_fail"})
             await s.commit()
     except Exception as e:
