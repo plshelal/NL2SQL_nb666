@@ -1,5 +1,11 @@
 # 金融问数系统 安装教程
 
+> **所有命令都在项目根目录 `finance-data-main` 下执行**（就是能看到 `install.bat` 的那个文件夹）。
+> 打开命令行（Win+R → 输入 cmd → 回车），用 `cd` 切到项目目录，例如：
+> ```
+> cd C:\Users\你的用户名\Desktop\finance-data-main
+> ```
+
 ## 你需要准备什么
 
 1. **一台 Windows 电脑**（Win10/11 都行）
@@ -11,7 +17,7 @@
    装完后关掉 PowerShell 重新打开，输入 `uv --version` 确认能看到版本号
 4. **DeepSeek API Key** — 去 https://platform.deepseek.com/ 注册，拿到 `sk-` 开头的密钥
 
-> **重要：如果你电脑上装了 MySQL**，请先在"服务"里停掉它（Win+R → services.msc → 找 MySQL → 停止），否则端口 3306 会冲突。
+> **重要：如果你电脑上装了 MySQL**，请先在"服务"里停掉它（Win+R → services.msc → 找 MySQL → 右键停止），否则端口 3306 会冲突。
 
 ---
 
@@ -19,16 +25,17 @@
 
 ### 第 1 步：配置密钥
 
-1. 打开项目文件夹，找到 `.env.example` 文件
-2. 复制一份，改名成 `.env`（把 .example 去掉）
-3. 用记事本打开 `.env`，改两行：
+在项目根目录下操作：
+
+1. 找到 `.env.example` 文件，复制一份，改名成 `.env`
+2. 用记事本打开 `.env`，改两行：
    - `DEEPSEEK_API_KEY=你的sk密钥`（把 your-deepseek-api-key 换成真实的）
    - `DB_PASSWORD=123321`（不用改，保持 123321 就行）
-4. 保存关闭
+3. 保存关闭
 
 ### 第 2 步：运行安装脚本
 
-双击 `install.bat`，或者在命令行里输入：
+在项目根目录下，双击 `install.bat`，或者在命令行里输入：
 ```
 install.bat
 ```
@@ -45,6 +52,7 @@ install.bat
 
 ### 第 3 步：启动应用
 
+在项目根目录下，命令行输入：
 ```
 uv run -m app.main
 ```
@@ -60,8 +68,9 @@ uv run -m app.main
 ## 如果安装失败
 
 ### install.bat 闪退
-- 右键 → 以管理员身份运行
+- 右键 install.bat → 以管理员身份运行
 - 确认 Docker Desktop 已启动（右下角绿色图标）
+- 确认在项目根目录下运行
 
 ### Docker 下载很慢
 打开 Docker Desktop → Settings → Docker Engine，在 JSON 里加：
@@ -77,56 +86,60 @@ uv run -m app.main
 说明你电脑上已有 MySQL 在跑。Win+R → `services.msc` → 找到 MySQL → 右键停止 → 重新跑 install.bat。
 
 ### uv sync 报错
-关掉所有命令行窗口，重新打开一个，`cd` 到项目目录，再跑 `uv sync`。如果还报错，试试：
+关掉所有命令行窗口，重新打开一个，`cd` 到项目根目录，再跑：
 ```
-$env:UV_CACHE_DIR = ".\.uv-cache"
+uv sync
+```
+如果还报错，试试：
+```
+set UV_CACHE_DIR=.\.uv-cache
 uv sync
 ```
 
 ### 其他问题
-把终端里的报错截图发出来，我帮你看。
+把终端里的报错截图发出来。
 
 ---
 
 ## 手动安装（脚本不行时用）
 
-如果 install.bat 不适用，按以下步骤手动操作：
+> 以下所有命令都在**项目根目录**下执行。
 
-**步骤 1：启动 Docker 服务**
+**步骤 1：启动 Docker 服务**（在项目根目录）
 ```
 docker compose -f docker\docker-compose.yaml up -d --build
 ```
 等待 4 个容器全部启动（首次构建约 10 分钟）。
 
-**步骤 2：安装 Python 依赖**
+**步骤 2：安装 Python 依赖**（在项目根目录）
 ```
 uv sync
 ```
 
-**步骤 3：初始化数据库**
+**步骤 3：初始化数据库**（在项目根目录）
 ```
 uv run init_db.py
 ```
 
-**步骤 4：导入预置数据**
+**步骤 4：导入预置数据**（在项目根目录）
 ```
 docker exec -i finance-mysql mysql -uroot -p123321 meta < two_database_update\meta_data.sql
 docker exec -i finance-mysql mysql -uroot -p123321 finance < two_database_update\finance_data.sql
 ```
 （密码 123321 替换为你在 .env 里设的 DB_PASSWORD）
 
-**步骤 5：构建知识索引**
+**步骤 5：构建知识索引**（在项目根目录）
 ```
 uv run -m app.scripts.build_meta_knowledge -c conf/meta_config.yaml
 ```
 
-**步骤 6：（可选）导入 CSV 权限**
+**步骤 6：（可选）导入 CSV 权限**（在项目根目录）
 ```
 uv run -m app.scripts.seed_permissions
 ```
 > 这步如果报错可以忽略——数据已经由步骤 4 预置了，CSV 只是补充。
 
-**步骤 7：启动**
+**步骤 7：启动**（在项目根目录）
 ```
 uv run -m app.main
 ```
@@ -157,11 +170,11 @@ uv run -m app.main
 
 ## 数据更新
 
-如果修改了数据库中的数据，重新导出：
+在项目根目录下执行：
 ```
 uv run python dump_data.py
 ```
-然后提交到 Git，其他人 git pull 后重新安装即可同步。
+刷新 dump 文件，提交到 Git 后其他人 git pull 即可同步。
 
 ## 常见问题
 
@@ -170,9 +183,3 @@ uv run python dump_data.py
 
 ### DeepSeek API 连接失败
 检查 `.env` 中的 `DEEPSEEK_API_KEY` 是否正确（sk- 开头）。API 地址：`https://api.deepseek.com/v1`。
-
-### 数据更新后重新导出
-```
-uv run python dump_data.py
-```
-刷新 dump 文件，提交 Git 后其他人 git pull 即可同步。
