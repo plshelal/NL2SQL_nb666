@@ -342,7 +342,6 @@ async def _macro_impl(query, ctx, writer):
                        "rows": result.get("rows", [])[:30]}, ensure_ascii=False)
            if result else
            json.dumps({"status": "no_data", "note": "EDB 未返回数据,建议更换指标名或时间范围"}, ensure_ascii=False))
-    await _audit_ext(ctx, "query_macro_indicator", query, bool(result), ret)
     return ret
 
 
@@ -354,24 +353,12 @@ async def _news_impl(query, ts, te, ctx, writer):
                        "items": result.get("rows", [])[:5]}, ensure_ascii=False)
            if result else
            json.dumps({"status": "no_data", "note": "资讯源未返回结果"}, ensure_ascii=False))
-    await _audit_ext(ctx, "search_financial_news", query, bool(result), ret)
     return ret
 
 
-async def _audit_ext(ctx, tool_name: str, query: str, ok: bool, result_json: str = ""):
-    try:
-        from sqlalchemy import text as _t
-        from app.clients.mysql_client_manager import meta_mysql_client_manager
-        async with meta_mysql_client_manager.session_factory() as s:
-            await s.execute(_t(
-                "INSERT INTO query_log (username, query_text, generated_sql, result_data, result_status) "
-                "VALUES (:u,:q,:t,:r,:s)"),
-                {"u": "agent", "q": query, "t": f"[{tool_name}] {query}",
-                 "r": result_json[:5000] if result_json else None,
-                 "s": "external_ok" if ok else "external_fail"})
-            await s.commit()
-    except Exception as e:
-        logger.warning(f"[orchestrator] 外部审计失败(忽略): {e}")
+# 外部工具审计已废除:tool_trace 完整记录工具调用链+返回结果,
+# query_router 创建的 query_log 行(真实用户名)是唯一审计记录,
+# 不再额外插 username='agent' 的行(会导致审计列表出现重复/虚假条目)
 
 
 # RubikSQL 回灌已迁移至 app.agent.knowledge_feedback(异步 + 独立 session + 缓存)。
