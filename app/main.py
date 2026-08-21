@@ -16,6 +16,7 @@ from app.api.routers.auth_router import auth_router
 from app.api.routers.qa_router import qa_router
 from app.api.routers.query_router import query_router
 from app.api.routers.review_router import review_router
+from app.api.routers.admin_router import admin_router
 from app.core.context import request_id_ctx_var
 from app.core.lifespan import lifespan
 
@@ -30,6 +31,7 @@ OPENAPI_TAGS = [
     {"name": "auth", "description": "认证接口"},
     {"name": "audit", "description": "审计日志接口"},
     {"name": "knowledge", "description": "知识管理(总览/审核/添加)接口"},
+    {"name": "admin", "description": "用户管理接口"},
 ]
 
 app = FastAPI(
@@ -44,6 +46,7 @@ app.include_router(qa_router, tags=["qa"])
 app.include_router(query_router, tags=["query"])
 app.include_router(audit_router, tags=["audit"])
 app.include_router(review_router, tags=["knowledge"])
+app.include_router(admin_router, tags=["admin"])
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

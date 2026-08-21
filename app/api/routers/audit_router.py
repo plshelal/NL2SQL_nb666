@@ -21,7 +21,8 @@ async def get_logs(
     ))
     rows = result.fetchall()
     return [{
-        "id": r.id, "username": r.username, "query": r.query_text,
-        "sql": r.generated_sql, "result": str(r.result_data)[:500] if r.result_data else "",
+        "id": r.id, "username": r.username, "query": r.query_text or "",
+        "sql": r.generated_sql or "",
+        "result": r.result_data or "",
         "rejected": bool(r.is_rejected), "time": str(r.created_at)
     } for r in rows]

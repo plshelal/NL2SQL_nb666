@@ -5,36 +5,84 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>金融问数 · 审计日志</title>
 <style>
+:root { --primary: #1e40af; --primary-light: #3b82f6; --bg: #f1f5f9; --surface: #fff; --text: #1e293b; --text-secondary: #64748b; --border: #e2e8f0; --success: #059669; --danger: #dc2626; --radius: 10px; --shadow: 0 1px 3px rgba(0,0,0,.06); }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f1f5f9; color: #1e293b; }
-.header { background: #1e40af; color: #fff; padding: 16px 24px; font-size: 18px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
-.header button { padding: 6px 14px; background: transparent; border: 1px solid rgba(255,255,255,.5); color: #fff; border-radius: 6px; cursor: pointer; font-size: 12px; }
-.container { max-width: 1200px; margin: 20px auto; padding: 0 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; height: 52px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.header .logo { font-weight: 700; font-size: 16px; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+.header .logo .dot { width: 8px; height: 8px; background: var(--primary-light); border-radius: 50%; }
+.header .user-info { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.header .user-info button { background: none; border: 1px solid var(--border); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+.header .user-info button:hover { color: var(--primary); border-color: var(--primary-light); }
+.container { max-width: 1200px; margin: 0 auto; padding: 22px 26px; height: calc(100vh - 52px); overflow-y: auto; }
 .toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
-.toolbar button { padding: 8px 16px; background: #1e40af; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
-.login-box { text-align: center; padding: 60px; background: #fff; border-radius: 12px; max-width: 400px; margin: 60px auto; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-.login-box input { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
-.login-box button { width: 100%; padding: 12px; background: #1e40af; color: #fff; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 12px; }
-.login-box .msg { color: #dc2626; font-size: 13px; margin-top: 8px; }
-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; font-size: 13px; }
-th { background: #f8fafc; padding: 10px 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-size: 12px; color: #64748b; }
-td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rejected { color: #dc2626; font-weight: 600; }
-.allowed { color: #059669; }
-.denied { text-align: center; padding: 60px; color: #dc2626; font-size: 18px; }
+.toolbar button { padding: 8px 16px; background: var(--primary); color: #fff; border: none; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.toolbar button:hover { background: #1e3a8a; }
+.login-page { display: flex; align-items: center; justify-content: center; height: 100vh; }
+.login-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 40px; width: 400px; max-width: 90vw; }
+.login-card h1 { font-size: 22px; margin-bottom: 4px; color: var(--primary); }
+.login-card .sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+.login-card label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; color: var(--text-secondary); }
+.login-card input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; }
+.login-card input:focus { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+.login-card button { width: 100%; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; margin-top: 20px; background: var(--primary); color: #fff; }
+.login-card button:hover { background: #1e3a8a; }
+.login-card .msg { color: var(--danger); font-size: 13px; margin-top: 8px; text-align: center; }
+.denied { text-align: center; padding: 80px 20px; color: var(--danger); font-size: 16px; }
+.denied a { color: var(--primary); }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; font-size: 13px; box-shadow: var(--shadow); }
+th { background: #f8fafc; padding: 10px 12px; text-align: left; border-bottom: 2px solid var(--border); font-size: 12px; color: var(--text-secondary); position: sticky; top: 0; z-index: 1; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
+tr:hover { background: #f8fafc; }
+.rejected { color: var(--danger); font-weight: 600; }
+.allowed { color: var(--success); }
+.expand-link { color: var(--primary); cursor: pointer; font-size: 11px; margin-left: 4px; white-space: nowrap; }
+.expand-link:hover { text-decoration: underline; }
+.muted { color: var(--text-secondary); font-size: 12px; }
+/* 详情弹窗 */
+.modal-bg { position: fixed; inset: 0; background: rgba(15,23,42,.4); display: none; align-items: center; justify-content: center; z-index: 100; }
+.modal-bg.show { display: flex; }
+.modal-box { background: var(--surface); border-radius: var(--radius); box-shadow: 0 4px 20px rgba(0,0,0,.15); width: 700px; max-width: 90vw; max-height: 80vh; display: flex; flex-direction: column; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.modal-head .title { font-weight: 700; font-size: 14px; color: var(--primary); }
+.modal-head .actions { display: flex; gap: 8px; }
+.modal-head button { padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; border: none; }
+.modal-head .copy-btn { background: var(--primary); color: #fff; }
+.modal-head .copy-btn:hover { background: #1e3a8a; }
+.modal-head .close-btn { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
+.modal-head .close-btn:hover { color: var(--danger); border-color: #fecaca; }
+.modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; white-space: pre-wrap; word-break: break-all; font-size: 13px; line-height: 1.6; font-family: "Cascadia Code", Consolas, monospace; }
 </style>
 </head>
 <body>
-<div class="header">
-  <span>金融问数 · 审计日志</span>
-  <button id="logout-btn" style="display:none" onclick="localStorage.removeItem('finance_token');location.reload()">退出</button>
+
+<div class="login-page" id="page-login" style="display:none">
+  <div class="login-card">
+    <h1>管理员登录</h1><div class="sub">审计日志 · 金融问数系统</div>
+    <div class="msg" id="login-msg" style="display:none"></div>
+    <label>用户名</label><input id="login-user">
+    <label>密码</label><input id="login-pass" type="password">
+    <button onclick="doLogin()">登 录</button>
+    <div class="sub" style="margin-top:16px;text-align:center;"><a href="/static/query.html" style="color:var(--primary);cursor:pointer;">返回问数系统</a></div>
+  </div>
 </div>
-<div class="container">
-  <div id="login-area"></div>
-  <div id="data-area" style="display:none">
+
+<div class="denied" id="page-denied" style="display:none">🔒 仅管理员可访问审计日志<br><br><a href="/static/query.html">返回问数系统</a></div>
+
+<div id="app" style="display:none;height:100vh;flex-direction:column;">
+  <header class="header">
+    <div class="logo"><span class="dot"></span>审计日志</div>
+    <div class="user-info">
+      <a href="/static/knowledge.html" style="background:#eff6ff;color:var(--primary);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">📚 知识管理</a>
+      <a href="/static/admin.html" style="background:#eff6ff;color:var(--primary);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">👥 用户管理</a>
+      <a href="/static/query.html" style="border:1px solid var(--border);padding:6px 14px;border-radius:6px;font-size:12px;color:var(--text-secondary);text-decoration:none;">返回问数</a>
+      <button onclick="doLogout()">退出</button>
+    </div>
+  </header>
+  <div class="container">
     <div class="toolbar">
       <button onclick="loadLogs()">刷新</button>
-      <span id="stats" style="font-size:13px;color:#64748b;"></span>
+      <span id="stats" style="font-size:13px;color:var(--text-secondary);"></span>
     </div>
     <table>
       <thead><tr><th>ID</th><th>用户</th><th>问题</th><th>SQL</th><th>结果</th><th>权限</th><th>时间</th></tr></thead>
@@ -42,63 +90,104 @@ td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; max-width: 300px; over
     </table>
   </div>
 </div>
+
+<div class="modal-bg" id="detail-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="title" id="detail-title">详情</span>
+      <div class="actions">
+        <button class="copy-btn" onclick="copyDetail()">复制</button>
+        <button class="close-btn" onclick="closeDetail()">关闭</button>
+      </div>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
 <script>
-const token = localStorage.getItem('finance_token');
+let token = localStorage.getItem('finance_token') || '';
+let _logs = [];
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
 async function init() {
-  if (!token) { showLogin(); return; }
-  const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
-  const d = await r.json();
-  if (!d.data) { showLogin(); return; }
-  if (d.data.user.username !== 'admin_total') { showDenied(); return; }
-  showData();
+  if (!token) return showLogin();
+  try {
+    const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+    const d = await r.json();
+    if (!d.data) return showLogin();
+    if (d.data.user.username !== 'admin_total') { document.getElementById('page-denied').style.display = 'block'; return; }
+    document.getElementById('app').style.display = 'flex';
+    loadLogs();
+  } catch(e) { showLogin(); }
 }
-
-function showLogin() {
-  document.getElementById('login-area').innerHTML = `
-    <div class="login-box">
-      <h2>管理员登录</h2>
-      <input id="login-user" placeholder="用户名"><br>
-      <input id="login-pass" type="password" placeholder="密码">
-      <button onclick="doLogin()">登录</button>
-      <div class="msg" id="login-msg"></div>
-    </div>`;
-}
-
-function showDenied() {
-  document.getElementById('login-area').innerHTML = '<div class="denied">🔒 仅管理员可访问审计日志<br><br><a href="/static/query.html">返回问数系统</a></div>';
-}
-
+function showLogin() { document.getElementById('page-login').style.display = 'flex'; }
 async function doLogin() {
-  const u = document.getElementById('login-user').value;
-  const p = document.getElementById('login-pass').value;
+  const u = document.getElementById('login-user').value.trim(), p = document.getElementById('login-pass').value.trim();
+  if (!u || !p) return;
   const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u,password:p}) });
   const d = await r.json();
-  if (d.code !== 0) { document.getElementById('login-msg').textContent = d.message; return; }
-  localStorage.setItem('finance_token', d.data.token);
-  location.reload();
+  if (d.code !== 0) { const m = document.getElementById('login-msg'); m.style.display = 'block'; m.textContent = d.message; return; }
+  localStorage.setItem('finance_token', d.data.token); location.reload();
 }
+function doLogout() { localStorage.removeItem('finance_token'); location.reload(); }
 
-function showData() {
-  document.getElementById('logout-btn').style.display = 'block';
-  document.getElementById('data-area').style.display = 'block';
-  loadLogs();
+// 渲染可展开的单元格:截断显示 + 展开链接
+function cell(text, type, id) {
+  if (!text || text.trim() === '' || text === '[]') {
+    return '<span class="muted">—</span>';
+  }
+  const display = String(text).slice(0, 60);
+  const needExpand = String(text).length > 60;
+  return `${esc(display)}${needExpand ? `…<span class="expand-link" onclick="showDetail('${type}', ${id})">展开</span>` : ''}`;
 }
 
 async function loadLogs() {
   const r = await fetch('/api/audit/logs', { headers: { 'Authorization': 'Bearer ' + token } });
-  const logs = await r.json();
-  document.getElementById('log-body').innerHTML = logs.map(l => `
+  _logs = await r.json();
+  const el = document.getElementById('log-body');
+  el.innerHTML = _logs.map(l => `
     <tr>
-      <td>${l.id}</td><td>${l.username}</td>
-      <td title="${l.query||''}">${(l.query||'').slice(0,50)}</td>
-      <td title="${l.sql||''}">${(l.sql||'').slice(0,70)}</td>
-      <td title="${l.result||''}">${(l.result||'').slice(0,70)}</td>
+      <td>${l.id}</td>
+      <td>${esc(l.username||'')}</td>
+      <td>${cell(l.query, 'query', l.id)}</td>
+      <td>${cell(l.sql, 'sql', l.id)}</td>
+      <td>${cell(l.result, 'result', l.id)}</td>
       <td class="${l.rejected?'rejected':'allowed'}">${l.rejected?'越权':'正常'}</td>
-      <td>${(l.time||'').slice(0,19)}</td>
+      <td style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">${esc((l.time||'').slice(0,19))}</td>
     </tr>`).join('');
-  document.getElementById('stats').textContent = `共 ${logs.length} 条记录`;
+  document.getElementById('stats').textContent = `共 ${_logs.length} 条记录`;
 }
+
+// 弹窗显示完整内容
+function showDetail(type, id) {
+  const l = _logs.find(x => x.id === id);
+  if (!l) return;
+  const titles = { query: '问题详情', sql: 'SQL 详情', result: '结果详情' };
+  const content = l[type] || '';
+  document.getElementById('detail-title').textContent = `${titles[type]} · #${id}`;
+  document.getElementById('detail-body').textContent = content;
+  document.getElementById('detail-modal').classList.add('show');
+}
+
+function closeDetail() {
+  document.getElementById('detail-modal').classList.remove('show');
+}
+
+function copyDetail() {
+  const text = document.getElementById('detail-body').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = '已复制';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+// 点背景关闭
+document.getElementById('detail-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'detail-modal') closeDetail();
+});
 
 init();
 </script>

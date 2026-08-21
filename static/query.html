@@ -223,6 +223,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
       <span id="header-username"></span>
       <span class="avatar" id="header-avatar" title=""></span>
       <a id="link-knowledge" href="/static/knowledge.html" style="background:#eff6ff;color:var(--primary);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="book-open" style="width:14px;height:14px;"></i>知识管理</a>
+      <a id="link-audit" href="/static/audit.html" style="display:none;background:#eff6ff;color:var(--primary);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="clipboard-list" style="width:14px;height:14px;"></i>审计</a>
+      <a id="link-admin" href="/static/admin.html" style="display:none;background:#eff6ff;color:var(--primary);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="users" style="width:14px;height:14px;"></i>用户管理</a>
       <button onclick="doLogout()"><i data-lucide="log-out" style="width:13px;height:13px;vertical-align:-2px;"></i> 退出</button>
     </div>
   </header>
@@ -302,6 +304,9 @@ async function doLogin() {
   loadConversations();
   document.getElementById('header-username').textContent=userInfo.username;
   setupAvatar(userInfo);
+  const isAdmin = userInfo.username === 'admin_total';
+  document.getElementById('link-audit').style.display = isAdmin ? 'inline-flex' : 'none';
+  document.getElementById('link-admin').style.display = isAdmin ? 'inline-flex' : 'none';
   const redirect = new URLSearchParams(location.search).get('redirect');
   if (redirect === 'audit') { location.href = '/static/audit.html'; return; }
   showPage('chat'); if(conversations.length===0) newConversation(); else { activeConvId=conversations[0].id; renderAll(); }
@@ -843,6 +848,9 @@ if (token) {
         userInfo = d.data.user;
         document.getElementById('header-username').textContent = userInfo.username;
         setupAvatar(userInfo);
+        const _isAdmin = userInfo.username === 'admin_total';
+        document.getElementById('link-audit').style.display = _isAdmin ? 'inline-flex' : 'none';
+        document.getElementById('link-admin').style.display = _isAdmin ? 'inline-flex' : 'none';
         loadConversations();
         showPage('chat');
         if (conversations.length) { activeConvId = conversations[0].id; renderAll(); }
