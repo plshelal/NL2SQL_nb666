@@ -9,10 +9,10 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# torch 用 CPU 专用 wheel(约200MB,比默认 CUDA 版小一个数量级),其余走清华源
+# torch 用 CPU 专用 wheel(约200MB,比默认 CUDA 版小一个数量级),其余走阿里云源
 RUN pip install --index-url https://download.pytorch.org/whl/cpu torch \
-    --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple \
- && pip install -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    --extra-index-url https://mirrors.aliyun.com/pypi/simple/ \
+ && pip install -i https://mirrors.aliyun.com/pypi/simple/ \
     fastapi "uvicorn[standard]" sentence-transformers
 
 COPY embedding_server.py .

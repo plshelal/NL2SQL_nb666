@@ -150,7 +150,7 @@ let editUid = null, selectedIndicators = new Set();
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function toast(msg, type) { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast ' + (type||'info'); t.style.display = 'block'; clearTimeout(t._tm); t._tm = setTimeout(()=>t.style.display='none',2600); }
-async function api(path, opts) { const r = await fetch(path, Object.assign({headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}}, opts||{})); if(r.status===401){location.reload();throw new Error('登录过期');} return r.json(); }
+async function api(path, opts) { const r = await fetch(path, Object.assign({headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}}, opts||{})); if(r.status===401){token='';localStorage.removeItem('finance_token');throw new Error('登录过期');} return r.json(); }
 
 async function init() {
   if (!token) return showLogin();

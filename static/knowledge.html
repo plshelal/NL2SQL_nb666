@@ -476,7 +476,7 @@ function toast(msg, type) {
 }
 async function api(path, opts) {
   const r = await fetch(path, Object.assign({ headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } }, opts || {}));
-  if (r.status === 401) { location.reload(); throw new Error('登录过期'); }
+  if (r.status === 401) { token = ''; localStorage.removeItem('finance_token'); throw new Error('登录过期'); }
   return r.json();
 }
 
@@ -568,11 +568,15 @@ async function loadOverview() {
 async function loadCounts() {
   const [p, a, r] = await Promise.all(['pending', 'approved', 'rejected'].map(s =>
     api('/api/knowledge/review?status=' + s)));
-  document.getElementById('cnt-pending').textContent = p.length;
+  // 待审数 = 规则候选 + 用户反馈查询(query-review pending)
+  let qCount = 0;
+  try { qCount = (await api('/api/knowledge/query-review?status=pending')).length; } catch(e) {}
+  const pendingTotal = p.length + qCount;
+  document.getElementById('cnt-pending').textContent = pendingTotal;
   document.getElementById('cnt-approved').textContent = a.length;
   document.getElementById('cnt-rejected').textContent = r.length;
   const badge = document.getElementById('review-cnt');
-  badge.textContent = p.length; badge.style.display = p.length ? 'flex' : 'none';
+  badge.textContent = pendingTotal; badge.style.display = pendingTotal ? 'flex' : 'none';
 }
 function setRTab(t) { reviewTab = t; selected.clear();
   ['pending', 'approved', 'rejected', 'ignored'].forEach(x => { const e = document.getElementById('rt-' + x); if (e) e.classList.toggle('active', x === t); });

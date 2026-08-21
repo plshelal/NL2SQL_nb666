@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, Any
 
 
 @dataclass
@@ -31,3 +31,6 @@ class MetricConfig:
 class MetaConfig:
     tables: Optional[list[TableConfig]] = None
     metrics: Optional[list[MetricConfig]] = None
+    # indicator_groups 在 yaml 中存在但运行时不需要结构化校验,
+    # 用 Any 兼容 OmegaConf 合并(yaml 里有什么都放进去,不报 ConfigKeyError)
+    indicator_groups: Optional[list[Any]] = None
