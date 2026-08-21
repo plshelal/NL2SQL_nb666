@@ -180,14 +180,14 @@ async def run_agent_query(question: str, ctx: DataAgentContext, writer,
                         args_str = json.dumps(tc.get("args", {}), ensure_ascii=False)
                         short_args = args_str if len(args_str) <= 100 else args_str[:100] + "..."
                         writer({"stage": f"🔧 调用工具:{nm}({short_args})"})
-                        tool_trace.append(f"{nm}({args_str[:150]})")
+                        tool_trace.append(f"{nm}({args_str})")
             elif t == "ToolMessage":
                 tool_name = getattr(m, "name", "unknown")
-                content_head = str(getattr(m, "content", ""))[:80]
-                ok_flag = '"status": "ok"' in content_head
+                content_full = str(getattr(m, "content", ""))
+                ok_flag = '"status": "ok"' in content_full[:80]
                 status = "✅ 成功" if ok_flag else "⚠️ 无数据"
                 writer({"stage": f"📡 {tool_name} 返回:{status}"})
-                tool_trace.append(f"  -> {'ok' if ok_flag else 'no_data'} {content_head[:60]}")
+                tool_trace.append(f"  -> {'ok' if ok_flag else 'no_data'} {content_full}")
         # 最终回答:最后一条无 tool_calls 的 AIMessage
         for m in reversed(msgs):
             if m.__class__.__name__ == "AIMessage" and not getattr(m, "tool_calls", None):

@@ -181,6 +181,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .op.clear { color: var(--danger); border-color: #fecaca; margin-left: auto; }
 .op.clear:hover { background: #fef2f2; color: var(--danger); }
 .prev-desc { font-size: 14px; color: var(--text); padding: 9px 12px; background: #f8faff; border: 1px solid #dbeafe; border-radius: 8px; margin-bottom: 8px; font-weight: 600; }
+.trace-box { font-family: "Cascadia Code", Consolas, monospace; font-size: 11px; color: var(--text-secondary); word-break: break-all; line-height: 1.6; white-space: pre-wrap; background: #f8fafc; padding: 8px 10px; border-radius: 6px; }
+.trace-toggle { color: var(--primary); cursor: pointer; font-weight: 400; font-size: 11px; }
+.trace-toggle:hover { text-decoration: underline; }
 
 /* ===== 知识图谱 ===== */
 .gtabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; margin-bottom: 14px; width: fit-content; }
@@ -446,6 +449,24 @@ let IS_ADMIN = false;
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 // 渲染后统一调用:把所有 <i data-lucide> 替换为 svg 图标
 function refreshIcons() { try { if (window.lucide) lucide.createIcons(); } catch(e) {} }
+// 格式化工具调用链:JSON 转义符→实际换行/引号,再尝试美化 JSON
+function formatTrace(s) {
+  if (!s) return '';
+  let t = s.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\t/g, '\t');
+  // 按分隔符 || 分段,每段如果含 JSON 就美化
+  t = t.split(' || ').map(seg => {
+    const jsonStart = seg.indexOf('{');
+    if (jsonStart < 0) return seg;
+    const prefix = seg.slice(0, jsonStart);
+    const jsonPart = seg.slice(jsonStart);
+    try {
+      return prefix + JSON.stringify(JSON.parse(jsonPart), null, 2);
+    } catch(e) {
+      return seg;
+    }
+  }).join('\n────────\n');
+  return esc(t);
+}
 // JS 字符串上下文转义(内嵌 onclick 属性时防止单引号/反斜杠断串)
 function jsq(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 function toast(msg, type) {
@@ -614,11 +635,15 @@ function qCardHTML(q) {
       <button class="btn sm ok" onclick="qReview(${q.id}, 'correct')"><i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;"></i> 通过</button>
       <button class="btn sm no" id="qrej-${q.id}" ${rejectDisabled} onclick="qReview(${q.id}, 'problem')"><i data-lucide="x" style="width:12px;height:12px;vertical-align:-2px;"></i> 驳回</button>
       <button class="btn sm ghost" onclick="qReview(${q.id}, 'ignored')"><i data-lucide="minus-circle" style="width:12px;height:12px;vertical-align:-2px;"></i> 忽略</button>
-      <button class="btn sm ghost" id="qedit-${q.id}" onclick="qToggleEdit(${q.id})"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-2px;"></i> 修改</button>
+      <button class="btn sm ghost" id="qedit-${q.id}" onclick="qToggleEdit(${q.id})"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-2px;"></i> 编辑反馈</button>
     </div>` : `
     <div class="rc-actions">
       <button class="btn sm ghost" onclick="qReview(${q.id}, 'pending')"><i data-lucide="undo-2" style="width:12px;height:12px;vertical-align:-2px;"></i> 撤销</button>
     </div>`;
+  const toolTrace = q.tool_trace ? `<div class="kv" style="margin-top:8px;">
+    <b style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">工具调用链及结果 <span class="trace-toggle" onclick="toggleTrace(${q.id}, this)">展开</span></b>
+    <pre class="trace-box" id="trace-${q.id}" style="max-height:40px;overflow:hidden;">${formatTrace(q.tool_trace)}</pre>
+  </div>` : '';
   return `<div class="card review-card" id="qc-${q.id}"><div class="body">
     <div class="rc-head">
       <span class="type-badge tool_choice">${badgeText}</span>
@@ -626,7 +651,7 @@ function qCardHTML(q) {
     </div>
     <div class="q-line"><i data-lucide="circle-help" style="width:14px;height:14px;vertical-align:-2px;color:var(--primary);"></i> ${esc(q.question)}</div>
     ${q.sql ? `<div class="sql-block">${hlSQL(q.sql)}</div>` : ''}
-    ${q.tool_trace ? `<div class="kv"><b style="display:block;margin-bottom:4px;">工具调用链:</b><span style="font-family:'Cascadia Code',Consolas,monospace;font-size:11px;color:var(--text-secondary);word-break:break-all;line-height:1.6;">${esc(q.tool_trace)}</span></div>` : ''}
+    ${toolTrace}
     ${q.feedback ? `<div class="q-line" style="color:#c2410c;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:8px 12px;margin-top:8px;"><i data-lucide="message-square-plus" style="width:14px;height:14px;vertical-align:-2px;"></i> 用户反馈: ${esc(q.feedback)}</div>` : ''}
     ${q.review_note ? `<div class="kv">审核备注:<b>${esc(q.review_note)}</b></div>` : ''}
     ${actions}
@@ -653,9 +678,22 @@ function qToggleEdit(qid) {
   const editing = ea.style.display === 'block';
   ea.style.display = editing ? 'none' : 'block';
   btn.innerHTML = editing
-    ? '<i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-2px;"></i> 修改'
+    ? '<i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-2px;"></i> 编辑反馈'
     : '<i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;"></i> 完成';
   refreshIcons();
+}
+// 工具调用链展开/收起
+function toggleTrace(qid, el) {
+  const box = document.getElementById('trace-' + qid);
+  if (!box || !el) return;
+  const collapsed = box.style.maxHeight === '40px' || !box.style.maxHeight;
+  if (collapsed) {
+    box.style.maxHeight = 'none';
+    el.textContent = '收起';
+  } else {
+    box.style.maxHeight = '40px';
+    el.textContent = '展开';
+  }
 }
 async function qReview(qid, status) {
   const note = (document.getElementById('qeat-' + qid) || {}).value || '';
