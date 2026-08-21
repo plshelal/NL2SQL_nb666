@@ -2,13 +2,15 @@
 
 江苏省 13 家农商行经营指标自然语言查询系统。用户用自然语言提问，系统自动生成 SQL 查询行内数据库，支持计算指标、指标组、外部宏观数据（iFinD）、多轮对话、知识图谱可视化。
 
+> 本文档以 **Windows** 环境为准。
+
 ## 前置环境要求
 
 | 软件 | 版本 | 安装方式 |
 |---|---|---|
-| **Docker Desktop** | 最新 | [下载](https://www.docker.com/products/docker-desktop/) |
-| **uv**（Python 包管理）| 最新 | `curl -LsSf https://astral.sh/uv/install.sh \| sh`（Mac/Linux）或 `powershell -c "irm https://astral.sh/install.ps1 \| iex"`（Windows）|
-| **Python** | ≥3.12 | uv 会自动安装，无需手动装 |
+| **Docker Desktop** | 最新 | [下载](https://www.docker.com/products/docker-desktop/)，安装后启动 |
+| **uv**（Python 包管理）| 最新 | 打开 PowerShell 执行：`powershell -c "irm https://astral.sh/install.ps1 \| iex"` |
+| **Python** | ≥3.12 | 不用手动装，uv 会自动安装 |
 | **DeepSeek API Key** | — | [申请](https://platform.deepseek.com/)，用于 LLM 生成 SQL |
 
 ## 快速开始（一键安装）
@@ -17,11 +19,11 @@
 
 复制 `.env.example` 为 `.env`：
 
-```bash
-cp .env.example .env   # Windows: copy .env.example .env
+```cmd
+copy .env.example .env
 ```
 
-用文本编辑器打开 `.env`，**必须填写以下两项**：
+用记事本或 VS Code 打开 `.env`，**必须填写以下两项**：
 
 | 变量 | 填什么 | 说明 |
 |---|---|---|
@@ -34,11 +36,9 @@ cp .env.example .env   # Windows: copy .env.example .env
 
 ### 2. 运行一键安装脚本
 
-```bash
-# Linux / macOS
-chmod +x install.sh && ./install.sh
+双击 `install.bat`，或在命令行执行：
 
-# Windows
+```cmd
 install.bat
 ```
 
@@ -47,12 +47,14 @@ install.bat
 2. 等待所有服务就绪
 3. 安装 Python 依赖（`uv sync`）
 4. 初始化数据库（`init_db.py`）
-5. 构建知识索引（Qdrant 向量 + ES 全文）
-6. 导入岗位权限和用户
+5. 导入预置数据（59 个用户 + 105 条权限 + 30 个公式 + 13 万行指标数据）
+6. 构建知识索引（Qdrant 向量 + ES 全文）
+
+首次构建 ES 和 TEI 镜像约需 5-10 分钟（下载 torch + IK 插件），请耐心等待。
 
 ### 3. 启动应用
 
-```bash
+```cmd
 uv run -m app.main
 ```
 
@@ -66,22 +68,21 @@ uv run -m app.main
 
 ### 步骤 1：启动 Docker 服务
 
-```bash
-cd docker
-docker compose up -d --build
+```cmd
+docker compose -f docker\docker-compose.yaml up -d --build
 ```
 
-等待服务启动（首次构建 ES + TEI 镜像约 5-10 分钟）。
+等待服务启动（首次构建约 5-10 分钟）。
 
 ### 步骤 2：安装 Python 依赖
 
-```bash
+```cmd
 uv sync
 ```
 
 ### 步骤 3：初始化数据库
 
-```bash
+```cmd
 uv run init_db.py
 ```
 
@@ -89,9 +90,9 @@ uv run init_db.py
 
 ### 步骤 4：导入预置数据
 
-```bash
-docker exec -i finance-mysql mysql -uroot -p123321 meta < two_database_update/meta_data.sql
-docker exec -i finance-mysql mysql -uroot -p123321 finance < two_database_update/finance_data.sql
+```cmd
+docker exec -i finance-mysql mysql -uroot -p123321 meta < two_database_update\meta_data.sql
+docker exec -i finance-mysql mysql -uroot -p123321 finance < two_database_update\finance_data.sql
 ```
 
 导入预置的 59 个用户、105 条岗位权限、30 个计算公式、13 万行业务指标数据。
@@ -99,7 +100,7 @@ docker exec -i finance-mysql mysql -uroot -p123321 finance < two_database_update
 
 ### 步骤 5：构建知识索引
 
-```bash
+```cmd
 uv run -m app.scripts.build_meta_knowledge -c conf/meta_config.yaml
 ```
 
@@ -107,7 +108,7 @@ uv run -m app.scripts.build_meta_knowledge -c conf/meta_config.yaml
 
 ### 步骤 6：导入权限和用户
 
-```bash
+```cmd
 uv run -m app.scripts.seed_permissions
 ```
 
@@ -115,7 +116,7 @@ uv run -m app.scripts.seed_permissions
 
 ### 步骤 7：启动
 
-```bash
+```cmd
 uv run -m app.main
 ```
 
@@ -164,7 +165,7 @@ finance-data-main/
 │   ├── app_config.yaml     # 服务配置
 │   ├── meta_config.yaml    # 表/字段/指标定义
 │   ├── tools.yaml          # iFinD MCP 配置
-│   └── finetune_data.json  # Few-shot 示例
+│   └── finetune_data.json  # Few-shot 示例（启动时自动重建）
 ├── docker/                 # Docker 构建
 │   ├── docker-compose.yaml # 4 服务编排
 │   ├── Dockerfile.tei      # 嵌入服务镜像
@@ -178,17 +179,20 @@ finance-data-main/
 │   └── vendor/             # 本地化 JS 库（lucide/vis-network/chart.js）
 ├── prompts/                # 提示词模板
 ├── .env.example            # 环境变量模板
-├── install.sh              # 一键安装(Linux/Mac)
-├── install.bat             # 一键安装(Windows)
+├── install.bat             # 一键安装（Windows）
+├── install.sh              # 一键安装（Linux/Mac，备用）
 ├── init_db.py              # 数据库初始化脚本
 └── pyproject.toml          # Python 依赖
 ```
 
 ## 常见问题
 
+### install.bat 闪退
+检查命令行是否以管理员身份运行，以及 Docker Desktop 是否已启动。
+
 ### ES 启动报 IK 插件错误
 ES 镜像（`Dockerfile.es`）已内置 IK 中文分词插件。如果手动拉 ES 镜像，需自行安装：
-```bash
+```cmd
 docker exec finance-es elasticsearch-plugin install https://release.infinilabs.com/analysis-ik/stable/elasticsearch-analysis-ik-8.11.0.zip
 docker restart finance-es
 ```
@@ -200,13 +204,14 @@ docker restart finance-es
 如果本地已占用 3306/6333/9200/8081/8000，修改 `docker/docker-compose.yaml` 的端口映射和 `.env` 中的端口配置。
 
 ### Docker 构建失败
-ES 镜像构建需要下载 IK 插件（~5MB），TEI 镜像需要安装 CPU 版 torch（~800MB）。首次构建较慢，之后有缓存。
+ES 镜像构建需要下载 IK 插件（~5MB），TEI 镜像需要安装 CPU 版 torch（~800MB）。首次构建较慢，之后有缓存。如果网络不好，可以配置 Docker 镜像加速器。
 
 ### DeepSeek API 连接失败
 检查 `.env` 中的 `DEEPSEEK_API_KEY` 是否正确。DeepSeek API 地址：`https://api.deepseek.com/v1`。
 
-## 测试
-
-```bash
-uv run pytest tests/test_external_routing.py -v
+### 数据更新后重新导出
+如果修改了数据库中的数据，重新导出 dump 文件：
+```cmd
+uv run python dump_data.py
 ```
+然后提交到 Git，其他人 `git pull` 后重新安装即可同步。
