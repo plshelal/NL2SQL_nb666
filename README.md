@@ -17,7 +17,33 @@
    装完后关掉 PowerShell 重新打开，输入 `uv --version` 确认能看到版本号
 4. **DeepSeek API Key** — 去 https://platform.deepseek.com/ 注册，拿到 `sk-` 开头的密钥
 
-> **重要：如果你电脑上装了 MySQL**，请先在"服务"里停掉它（Win+R → services.msc → 找 MySQL → 右键停止），否则端口 3306 会冲突。
+### 重要：配置 Docker 镜像加速（不配会很慢）
+
+打开 Docker Desktop → 点右上角齿轮图标(Settings) → 左侧选 Docker Engine → 把内容**全部替换**成：
+
+```json
+{
+  "experimental": false,
+  "features": {
+    "buildkit": true
+  },
+  "registry-mirrors": [
+    "https://docker.1ms.run",
+    "https://docker.xuanyuan.me",
+    "https://docker.m.daocloud.io"
+  ]
+}
+```
+
+点 **Apply & Restart**，等 Docker 重启完（右下角图标变绿）。
+
+### 重要：停掉本地 MySQL（如果有）
+
+如果你电脑上装过 MySQL，必须先停掉它，否则端口 3306 会冲突：
+- Win+R → 输入 `services.msc` → 回车
+- 在列表里找到 **MySQL** → 右键 → 停止
+
+> 如果你电脑上没装过 MySQL，这步跳过。
 
 ---
 
@@ -27,9 +53,9 @@
 
 在项目根目录下操作：
 
-1. 找到 `.env.example` 文件，复制一份，改名成 `.env`
+1. 找到 `.env.example` 文件，复制一份，改名成 `.env`（把 `.example` 去掉）
 2. 用记事本打开 `.env`，改两行：
-   - `DEEPSEEK_API_KEY=你的sk密钥`（把 your-deepseek-api-key 换成真实的）
+   - `DEEPSEEK_API_KEY=你的sk密钥`（把 `your-deepseek-api-key` 换成真实的）
    - `DB_PASSWORD=123321`（不用改，保持 123321 就行）
 3. 保存关闭
 
@@ -68,48 +94,54 @@ uv run -m app.main
 ## 如果安装失败
 
 ### install.bat 闪退
-- 右键 install.bat → 以管理员身份运行
-- 确认 Docker Desktop 已启动（右下角绿色图标）
-- 确认在项目根目录下运行
+1. 右键 `install.bat` → 以管理员身份运行
+2. 确认 Docker Desktop 已启动（右下角绿色图标）
+3. 确认在项目根目录下运行（命令行里输入 `dir install.bat` 能看到文件）
+4. 如果还是闪退，打开 cmd，手动输入 `install.bat`，看具体报什么错
 
-### Docker 下载很慢
-打开 Docker Desktop → Settings → Docker Engine，在 JSON 里加：
-```json
-"registry-mirrors": [
-    "https://docker.1ms.run",
-    "https://docker.m.daocloud.io"
-]
-```
-点 Apply & Restart，重新跑 install.bat。
+### Docker 下载很慢或卡住
+确认你已完成上面的"配置 Docker 镜像加速"。如果配了还是慢，重启 Docker Desktop 再试。
 
 ### 端口 3306 被占用
-说明你电脑上已有 MySQL 在跑。Win+R → `services.msc` → 找到 MySQL → 右键停止 → 重新跑 install.bat。
+说明你电脑上已有 MySQL 在跑。
+- Win+R → `services.msc` → 找到 MySQL → 右键停止 → 重新跑 `install.bat`
+
+### 端口 8000 被占用
+说明已有程序占着 8000 端口。打开 `.env` 改 `APP_PORT=8001`，然后用 `http://localhost:8001/static/query.html` 访问。
 
 ### uv sync 报错
 关掉所有命令行窗口，重新打开一个，`cd` 到项目根目录，再跑：
 ```
 uv sync
 ```
-如果还报错，试试：
+如果还报错，试试把缓存目录设到项目内：
 ```
 set UV_CACHE_DIR=.\.uv-cache
 uv sync
 ```
 
+### TEI 镜像构建失败
+Dockerfile 里的 pip 源可能不通。如果报 `No matching distribution found`，手动构建：
+```
+docker compose -f docker\docker-compose.yaml build tei
+```
+如果还失败，尝试修改 `docker\Dockerfile.tei` 里的 pip 源地址。
+
 ### 其他问题
-把终端里的报错截图发出来。
+把命令行里的报错截图发出来。
 
 ---
 
 ## 手动安装（脚本不行时用）
 
-> 以下所有命令都在**项目根目录**下执行。
+> 以下所有命令都在**项目根目录**下执行（就是能看到 `install.bat` 的那个文件夹）。
+> 打开 cmd，`cd` 到项目目录，然后逐条执行。
 
 **步骤 1：启动 Docker 服务**（在项目根目录）
 ```
 docker compose -f docker\docker-compose.yaml up -d --build
 ```
-等待 4 个容器全部启动（首次构建约 10 分钟）。
+等待 4 个容器全部启动（首次构建约 10 分钟）。用 `docker ps` 确认 4 个容器都是 Up 状态。
 
 **步骤 2：安装 Python 依赖**（在项目根目录）
 ```
@@ -126,7 +158,7 @@ uv run init_db.py
 docker exec -i finance-mysql mysql -uroot -p123321 meta < two_database_update\meta_data.sql
 docker exec -i finance-mysql mysql -uroot -p123321 finance < two_database_update\finance_data.sql
 ```
-（密码 123321 替换为你在 .env 里设的 DB_PASSWORD）
+（密码 `123321` 替换为你在 `.env` 里设的 `DB_PASSWORD`）
 
 **步骤 5：构建知识索引**（在项目根目录）
 ```
