@@ -26,7 +26,7 @@ cp .env.example .env   # Windows: copy .env.example .env
 | 变量 | 填什么 | 说明 |
 |---|---|---|
 | `DEEPSEEK_API_KEY` | `sk-你的真实密钥` | **必填**，没这个系统无法生成 SQL。在 [DeepSeek 平台](https://platform.deepseek.com/) 申请 |
-| `DB_PASSWORD` | `123321` | MySQL root 密码。**建议保持 123321**（与 dump 数据兼容）。如果改了，Docker MySQL 和导入数据都会用新密码 |
+| `DB_PASSWORD` | `123321` | Docker 启动的 MySQL 容器的 root 密码。你自己定一个就行，Docker 会用这个密码创建容器，安装脚本也用这个密码连——两边读同一个 `.env` 自动对齐 |
 
 其余变量（QDRANT_HOST/PORT、ES_HOST/PORT、TEI_HOST/PORT 等）在本地安装时**不用改**，默认都是 127.0.0.1 + 标准端口。
 
