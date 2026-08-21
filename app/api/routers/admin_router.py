@@ -42,6 +42,21 @@ async def list_indicators(user=Depends(get_current_user),
     return {"direct": direct, "computed": computed}
 
 
+# ---- 岗位权限映射(供前端联动) ----
+
+@admin_router.get("/api/admin/position-permissions")
+async def position_permissions(user=Depends(get_current_user),
+                                session: AsyncSession = Depends(get_meta_session)):
+    """返回所有岗位→指标权限映射 {岗位: [指标1, 指标2, ...]}"""
+    _require_admin(user)
+    r = await session.execute(text(
+        "SELECT role_name, indicator_name FROM role_permission ORDER BY role_name"))
+    out: dict[str, list] = {}
+    for x in r.fetchall():
+        out.setdefault(x.role_name or "", []).append(x.indicator_name)
+    return out
+
+
 # ---- 用户列表 ----
 
 @admin_router.get("/api/admin/users")

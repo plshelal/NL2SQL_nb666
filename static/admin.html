@@ -113,7 +113,7 @@ tr:hover { background: #f8fafc; }
     </div>
     <div class="form-row">
       <label>岗位</label>
-      <select id="m-position">
+      <select id="m-position" onchange="onPositionChange()">
         <option>综合管理</option><option>客户经理</option><option>风控专员</option><option>财务人员</option>
       </select>
     </div>
@@ -145,6 +145,7 @@ tr:hover { background: #f8fafc; }
 <script>
 let token = localStorage.getItem('finance_token') || '';
 let users = [], allIndicators = { direct: [], computed: [] };
+let positionPerms = {};  // {岗位: [指标1, 指标2, ...]}
 let editUid = null, selectedIndicators = new Set();
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
@@ -160,7 +161,7 @@ async function init() {
     if (u.username !== 'admin_total') { document.getElementById('page-denied').style.display='block'; return; }
     document.getElementById('h-username').textContent = u.username;
     document.getElementById('app').style.display = 'flex';
-    loadIndicators(); loadUsers();
+    loadIndicators(); loadPositionPerms(); loadUsers();
   } catch(e) { showLogin(); }
 }
 function showLogin() { document.getElementById('page-login').style.display = 'flex'; }
@@ -176,6 +177,29 @@ function doLogout() { localStorage.removeItem('finance_token'); location.reload(
 
 async function loadIndicators() {
   allIndicators = await api('/api/admin/indicators');
+}
+async function loadPositionPerms() {
+  positionPerms = await api('/api/admin/position-permissions');
+}
+// 切换岗位时自动勾选该岗位预定义的指标
+function onPositionChange() {
+  const pos = document.getElementById('m-position').value;
+  selectedIndicators = new Set(positionPerms[pos] || []);
+  renderIndicatorChecks();
+}
+function renderIndicatorChecks() {
+  const all = [...(allIndicators.direct||[]).map(n=>({n,t:'直接'})), ...(allIndicators.computed||[]).map(n=>({n,t:'计算'}))];
+  document.getElementById('m-indicators').innerHTML = all.map(i => {
+    const checked = selectedIndicators.has(i.n) ? 'checked' : '';
+    return `<div class="ind-item"><input type="checkbox" data-ind="${esc(i.n)}" ${checked}> <span class="badge ${i.t==='计算'?'gray':''}" style="font-size:10px;">${i.t}</span> ${esc(i.n)}</div>`;
+  }).join('');
+  document.getElementById('m-ind-count').textContent = selectedIndicators.size;
+  document.querySelectorAll('#m-indicators input[type=checkbox]').forEach(cb => {
+    cb.onchange = () => {
+      cb.checked ? selectedIndicators.add(cb.dataset.ind) : selectedIndicators.delete(cb.dataset.ind);
+      document.getElementById('m-ind-count').textContent = selectedIndicators.size;
+    };
+  });
 }
 
 async function loadUsers() {
@@ -207,21 +231,7 @@ function editUser(uid) {
   document.getElementById('m-org').value = u.org_name;
   document.getElementById('m-orgs').value = u.allowed_orgs.join(',');
   document.getElementById('m-password').value = '';
-  // 指标列表
-  const all = [...(allIndicators.direct||[]).map(n=>({n,t:'直接'})), ...(allIndicators.computed||[]).map(n=>({n,t:'计算'}))];
-  document.getElementById('m-indicators').innerHTML = all.map(i => {
-    const checked = selectedIndicators.has(i.n) ? 'checked' : '';
-    return `<div class="ind-item"><input type="checkbox" data-ind="${esc(i.n)}" ${checked}> <span class="badge ${i.t==='计算'?'gray':''}" style="font-size:10px;">${i.t}</span> ${esc(i.n)}</div>`;
-  }).join('');
-  document.getElementById('m-ind-count').textContent = selectedIndicators.size;
-  // checkbox 联动
-  document.querySelectorAll('#m-indicators input[type=checkbox]').forEach(cb => {
-    cb.onchange = () => {
-      const ind = cb.dataset.ind;
-      cb.checked ? selectedIndicators.add(ind) : selectedIndicators.delete(ind);
-      document.getElementById('m-ind-count').textContent = selectedIndicators.size;
-    };
-  });
+  renderIndicatorChecks();
   document.getElementById('edit-modal').classList.add('show');
 }
 
