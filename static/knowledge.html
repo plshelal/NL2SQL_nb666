@@ -331,8 +331,8 @@ table.matrix td:first-child { text-align: left; font-weight: 600; }
           <span style="flex:1"></span>
           <div id="batch-bar" style="display:flex;gap:8px;">
             <button class="btn ghost sm" onclick="selectAll()">全选</button>
-            <button class="btn ok sm" onclick="batchReview('approved')">批量通过</button>
-            <button class="btn no sm" onclick="batchReview('rejected')">批量驳回</button>
+            <button class="btn ok sm" onclick="batchReview('correct')">批量通过</button>
+            <button class="btn sm ghost" onclick="batchReview('ignored')">批量忽略</button>
           </div>
           <button class="btn no sm" id="clear-btn" style="display:none;" onclick="clearTab()"><i data-lucide="trash-2" style="width:12px;height:12px;vertical-align:-2px;"></i> 一键清空</button>
         </div>
@@ -630,6 +630,7 @@ function qCardHTML(q) {
   const hasFeedback = !!(q.feedback && q.feedback.trim());
   const rejectDisabled = hasFeedback ? '' : 'disabled style="opacity:.4;cursor:not-allowed;" title="驳回需先点修改填写问题描述"';
   const badgeText = hasFeedback ? '用户反馈' : '查询记录';
+  const cb = isPending ? `<div class="cb"><input type="checkbox" ${selected.has('q'+q.id) ? 'checked' : ''} onchange="toggleSel('q'+${q.id}, this.checked)"></div>` : '';
   const actions = isPending ? `
     <div class="rc-actions">
       <button class="btn sm ok" onclick="qReview(${q.id}, 'correct')"><i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;"></i> 通过</button>
@@ -644,7 +645,7 @@ function qCardHTML(q) {
     <b style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">工具调用链及结果 <span class="trace-toggle" onclick="toggleTrace(${q.id}, this)">展开</span></b>
     <pre class="trace-box" id="trace-${q.id}" style="max-height:40px;overflow:hidden;">${formatTrace(q.tool_trace)}</pre>
   </div>` : '';
-  return `<div class="card review-card" id="qc-${q.id}"><div class="body">
+  return `<div class="card review-card" id="qc-${q.id}">${cb}<div class="body">
     <div class="rc-head">
       <span class="type-badge tool_choice">${badgeText}</span>
       <span class="meta-line">${esc(q.username||'')} · ${esc((q.time||'').slice(0,16))} · #${q.id}</span>
@@ -756,10 +757,17 @@ function actionsHTML(r) {
 function toggleSel(id, on) { on ? selected.add(id) : selected.delete(id); }
 function selectAll() {
   const boxes = document.querySelectorAll('#review-list input[type=checkbox]');
-  const all = boxes.length && [...boxes].every(b => b.checked);
-  boxes.forEach(b => { b.checked = !all; });
+  if (!boxes.length) return;
+  const allChecked = [...boxes].every(b => b.checked);
+  boxes.forEach(b => { b.checked = !allChecked; });
   selected.clear();
-  if (!all) reviewData.forEach(r => selected.add(r.id));
+  if (!allChecked) {
+    // 选中所有:query反馈(q+id) + 规则(id)
+    document.querySelectorAll('#review-list input[type=checkbox]').forEach(b => {
+      const id = b.getAttribute('onchange').match(/toggleSel\('?(q?\d+)/);
+      if (id) selected.add(id[1]);
+    });
+  }
 }
 function toggleEdit(id) {
   const ea = document.getElementById('ea-' + id);
@@ -780,8 +788,21 @@ async function saveEdit(id, status) {
 async function reReview(id, status) { await reviewOne(id, status); }
 async function batchReview(status) {
   if (!selected.size) return toast('请先勾选条目', 'err');
-  await api('/api/knowledge/review/batch', { method: 'POST', body: JSON.stringify({ ids: [...selected], status }) });
-  toast(`批量${status === 'approved' ? '通过' : '驳回'} ${selected.size} 条`, 'ok');
+  const ids = [...selected];
+  for (const sid of ids) {
+    if (sid.startsWith('q')) {
+      // query_log 条目:调 query-review 接口
+      const qid = parseInt(sid.slice(1));
+      await api('/api/knowledge/query-review/' + qid, { method: 'POST', body: JSON.stringify({ status }) });
+    } else {
+      // distilled_rules 条目:调 review 接口
+      const rid = parseInt(sid);
+      const apiStatus = status === 'correct' ? 'approved' : status === 'ignored' ? 'rejected' : 'approved';
+      await api('/api/knowledge/review/' + rid, { method: 'POST', body: JSON.stringify({ status: apiStatus }) });
+    }
+  }
+  const label = status === 'correct' ? '通过' : '忽略';
+  toast(`批量${label} ${ids.length} 条`, 'ok');
   selected.clear(); refreshReview();
 }
 function refreshReview() { loadCounts(); loadReview(); }
