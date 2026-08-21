@@ -1,4 +1,4 @@
-# 金融问数系统 安装教程
+# 金融问数系统 安装教程（请先通读一遍此教程，预先了解可能遇到的报错）
 
 > **所有命令都在项目根目录 `finance-data-main` 下执行**（就是能看到 `install.bat` 的那个文件夹）。
 > 打开命令行（Win+R → 输入 cmd → 回车），用 `cd` 切到项目目录，例如：
@@ -16,6 +16,7 @@
    ```
    装完后关掉 PowerShell 重新打开，输入 `uv --version` 确认能看到版本号
 4. **DeepSeek API Key** — 去 https://platform.deepseek.com/ 注册，拿到 `sk-` 开头的密钥
+
 
 ### 重要：配置 Docker 镜像加速（不配会很慢）
 
