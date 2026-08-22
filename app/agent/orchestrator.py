@@ -230,15 +230,17 @@ async def run_agent_query(question: str, ctx: DataAgentContext, writer,
         except Exception as e:
             logger.warning(f"[orchestrator] tool_trace 写 query_log 失败(忽略): {e}")
 
-    # 回写最终回答到 query_log.result_summary(审核员据此复核语义对错)
+    # 回写最终回答到 query_log.result_summary + 标记是否可审核(审核员据此复核语义对错)
+    # 闲聊/纯回答(没调工具)标 review_status='ignored',不进待审列表
     if log_id is not None:
         try:
             from sqlalchemy import text as _t
             from app.clients.mysql_client_manager import meta_mysql_client_manager
             async with meta_mysql_client_manager.session_factory() as _s:
+                rv_status = "ignored" if not tool_trace else None  # 没调工具=闲聊,不进审核
                 await _s.execute(_t(
-                    "UPDATE query_log SET result_summary=:r WHERE id=:i"),
-                    {"r": str(final_text)[:5000], "i": log_id})
+                    "UPDATE query_log SET result_summary=:r, review_status=COALESCE(:s, review_status) WHERE id=:i"),
+                    {"r": str(final_text)[:5000], "s": rv_status, "i": log_id})
                 await _s.commit()
         except Exception as e:
             logger.warning(f"[orchestrator] result_summary 回写失败(忽略): {e}")

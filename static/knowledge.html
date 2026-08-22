@@ -567,14 +567,19 @@ async function loadOverview() {
 // ============ 审核中心 ============
 async function loadCounts() {
   const [p, a, r] = await Promise.all(['pending', 'approved', 'rejected'].map(s =>
-    api('/api/knowledge/review?status=' + s)));
-  // 待审数 = 规则候选 + 用户反馈查询(query-review pending)
-  let qCount = 0;
-  try { qCount = (await api('/api/knowledge/query-review?status=pending')).length; } catch(e) {}
-  const pendingTotal = p.length + qCount;
+    api('/api/knowledge/review?status=' + s).catch(() => [])));
+  // query_log 各状态计数(待审/已通过/已驳回/已忽略)
+  const qStats = {};
+  try {
+    for (const s of ['pending', 'correct', 'problem', 'ignored']) {
+      qStats[s] = (await api('/api/knowledge/query-review?status=' + s)).length;
+    }
+  } catch(e) {}
+  const pendingTotal = p.length + (qStats.pending || 0);
   document.getElementById('cnt-pending').textContent = pendingTotal;
-  document.getElementById('cnt-approved').textContent = a.length;
-  document.getElementById('cnt-rejected').textContent = r.length;
+  document.getElementById('cnt-approved').textContent = a.length + (qStats.correct || 0);
+  document.getElementById('cnt-rejected').textContent = r.length + (qStats.problem || 0);
+  document.getElementById('cnt-ignored').textContent = qStats.ignored || 0;
   const badge = document.getElementById('review-cnt');
   badge.textContent = pendingTotal; badge.style.display = pendingTotal ? 'flex' : 'none';
 }
@@ -704,7 +709,7 @@ async function qReview(qid, status) {
   const note = (document.getElementById('qeat-' + qid) || {}).value || '';
   await api('/api/knowledge/query-review/' + qid, { method: 'POST', body: JSON.stringify({ status, note }) });
   toast(status === 'correct' ? '已通过,SQL 回灌范例池' : status === 'problem' ? '已驳回' : status === 'ignored' ? '已忽略' : '已撤销,回到待审', 'ok');
-  loadReview();
+  refreshReview();
 }
 function cardHTML(r) {
   const cb = reviewTab === 'pending' ? `<div class="cb"><input type="checkbox" ${selected.has(r.id) ? 'checked' : ''} onchange="toggleSel(${r.id}, this.checked)"></div>` : '';

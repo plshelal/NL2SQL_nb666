@@ -130,11 +130,14 @@ async def lifespan(app: FastAPI):
     from app.agent.fewshot_rag import precompute_embeddings
     await precompute_embeddings()
 
-    # RubikSQL 语义归纳:query_log 加 analyzed_at + tool_trace 列(老表自动补)
+    # query_log 老表自动补列(result_data/is_rejected 被 audit_router 和 execute_sql 使用
+    # 但原 sql/meta.sql 建表时没有这些列,需自动迁移)
     async with meta_mysql_client_manager.session_factory() as s:
         for col, ddl in [
-            ("analyzed_at", "ADD COLUMN analyzed_at DATETIME DEFAULT NULL COMMENT 'agent归纳时间,NULL=未归纳'"),
-            ("tool_trace", "ADD COLUMN tool_trace TEXT COMMENT 'Agent工具调用链,审核员可见'"),
+            ("result_data", "ADD COLUMN result_data TEXT"),
+            ("is_rejected", "ADD COLUMN is_rejected BOOLEAN DEFAULT 0"),
+            ("analyzed_at", "ADD COLUMN analyzed_at DATETIME DEFAULT NULL"),
+            ("tool_trace", "ADD COLUMN tool_trace TEXT"),
         ]:
             r = await s.execute(text(
                 "SELECT COUNT(*) n FROM information_schema.COLUMNS "
