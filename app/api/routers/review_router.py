@@ -41,7 +41,7 @@ async def list_query_review(status: str = "pending", user=Depends(get_current_us
                             session: AsyncSession = Depends(get_meta_session)):
     """列出带用户反馈的查询(审核员复核语义对错)。
     status: pending(待复核) / correct / problem。
-    卡片展示 问题+SQL+结果摘要+用户反馈(预填问题描述栏)。"""
+    只返回有用户反馈(feedback 非空)的查询——审核中心仅复核用户反馈,普通查询不进入。"""
     _require_admin(user)
     if status not in ("pending", "correct", "problem", "ignored"):
         raise HTTPException(400, "status 非法")
@@ -49,6 +49,7 @@ async def list_query_review(status: str = "pending", user=Depends(get_current_us
         "SELECT id, username, query_text, generated_sql, result_summary, "
         "feedback, review_status, review_note, tool_trace, created_at FROM query_log "
         "WHERE username != 'agent' "
+        "AND feedback IS NOT NULL AND TRIM(feedback) <> '' "
         "AND (review_status=:s OR (:s='pending' AND (review_status IS NULL OR review_status='pending'))) "
         "ORDER BY created_at DESC LIMIT 100"
     ), {"s": status})
