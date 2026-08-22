@@ -53,6 +53,8 @@ async def lifespan(app: FastAPI):
             "ADD COLUMN feedback TEXT COMMENT '用户对本次回答的自然语言反馈'",
             "ADD COLUMN review_status VARCHAR(16) DEFAULT 'none' COMMENT 'none/pending/correct/problem'",
             "ADD COLUMN review_note TEXT COMMENT '审核员补充描述'",
+            "ADD COLUMN result_data MEDIUMTEXT COMMENT '查询结果(JSON)'",
+            "ADD COLUMN is_rejected TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否被驳回'",
         ):
             col_name = col_ddl.split("ADD COLUMN ")[1].split(" ")[0]
             r = await session.execute(text(
