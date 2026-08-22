@@ -175,6 +175,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .tok .x { cursor: pointer; color: #cbd5e1; font-weight: 700; font-size: 14px; }
 .tok .x:hover { color: var(--danger); }
 .tok:hover { box-shadow: 0 0 0 2px rgba(59,130,246,.15); }
+/* 拖拽排序 */
+.tok { cursor: grab; }
+.tok:active { cursor: grabbing; }
+.tok.dragging { opacity: .45; }
+.tok.drag-over { outline: 2px dashed var(--primary-light); outline-offset: 1px; }
 .op-row { display: flex; gap: 7px; flex-wrap: wrap; }
 .op { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-size: 13px; cursor: pointer; color: var(--text); font-weight: 600; transition: all .12s; }
 .op:hover { border-color: var(--primary-light); color: var(--primary); background: #f8faff; }
@@ -362,7 +367,7 @@ table.matrix td:first-child { text-align: left; font-weight: 600; }
           <div class="form-row">
             <label>表达式 <span class="req">*</span> <span style="font-weight:400;color:#94a3b8;font-size:11px;">点选字段与运算符搭出公式</span></label>
             <div class="expr-box" id="f-expr"></div>
-            <div class="hint" id="f-expr-hint">点下方字段插入指标原子,或点运算符;每项可点 ✕ 删除</div>
+            <div class="hint" id="f-expr-hint">点下方字段插入指标原子,或点运算符;每项可点 ✕ 删除,按住卡片拖拽可调整顺序</div>
           </div>
           <div class="form-row">
             <label>运算符</label>
@@ -566,17 +571,25 @@ async function loadOverview() {
 
 // ============ 审核中心 ============
 async function loadCounts() {
-  const [p, a, r] = await Promise.all(['pending', 'approved', 'rejected'].map(s =>
-    api('/api/knowledge/review?status=' + s)));
-  // 待审数 = 规则候选 + 用户反馈查询(query-review pending)
-  let qCount = 0;
-  try { qCount = (await api('/api/knowledge/query-review?status=pending')).length; } catch(e) {}
-  const pendingTotal = p.length + qCount;
-  document.getElementById('cnt-pending').textContent = pendingTotal;
-  document.getElementById('cnt-approved').textContent = a.length;
-  document.getElementById('cnt-rejected').textContent = r.length;
+  // 各 tab 计数 = 蒸馏规则 + 用户反馈(query_log) 之和;ignored 仅反馈(规则无 ignored 状态)
+  const n = async u => { try { const d = await api(u); return Array.isArray(d) ? d.length : 0; } catch (e) { return 0; } };
+  const [pR, aR, rR, qP, qA, qR, qI] = await Promise.all([
+    n('/api/knowledge/review?status=pending'),
+    n('/api/knowledge/review?status=approved'),
+    n('/api/knowledge/review?status=rejected'),
+    n('/api/knowledge/query-review?status=pending'),
+    n('/api/knowledge/query-review?status=correct'),
+    n('/api/knowledge/query-review?status=problem'),
+    n('/api/knowledge/query-review?status=ignored'),
+  ]);
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  set('cnt-pending', pR + qP);
+  set('cnt-approved', aR + qA);
+  set('cnt-rejected', rR + qR);
+  set('cnt-ignored', qI);
   const badge = document.getElementById('review-cnt');
-  badge.textContent = pendingTotal; badge.style.display = pendingTotal ? 'flex' : 'none';
+  const total = pR + qP;
+  badge.textContent = total; badge.style.display = total ? 'flex' : 'none';
 }
 function setRTab(t) { reviewTab = t; selected.clear();
   ['pending', 'approved', 'rejected', 'ignored'].forEach(x => { const e = document.getElementById('rt-' + x); if (e) e.classList.toggle('active', x === t); });
@@ -601,27 +614,32 @@ async function loadReview() {
       api('/api/knowledge/query-review?status=pending').catch(() => []),
       api('/api/knowledge/review?status=pending')
     ]);
-    reviewData = rules;
-    if (!queries.length && !rules.length) {
+    const qArr = Array.isArray(queries) ? queries : [];
+    const rArr = Array.isArray(rules) ? rules : [];
+    reviewData = rArr;
+    if (!qArr.length && !rArr.length) {
       el.innerHTML = `<div class="card empty-box"><div class="ico"><i data-lucide="inbox" style="width:32px;height:32px;"></i></div>暂无待审条目 — 等用户反馈后自动出现</div>`;
       refreshIcons();
       return;
     }
-    cards = queries.map(q => qCardHTML(q)).concat(rules.map(r => cardHTML(r)));
+    cards = qArr.map(q => qCardHTML(q)).concat(rArr.map(r => cardHTML(r)));
   } else {
     // 已生效/已驳回/已忽略:加载 query_log(对应 correct/problem/ignored) + distilled_rules
+    // 注意:distilled_rules 无 ignored 状态,已忽略 tab 只加载 query_log
     const qStatus = reviewTab === 'approved' ? 'correct' : reviewTab === 'rejected' ? 'problem' : 'ignored';
     const [queries, rules] = await Promise.all([
       api('/api/knowledge/query-review?status=' + qStatus).catch(() => []),
-      api('/api/knowledge/review?status=' + reviewTab)
+      reviewTab === 'ignored' ? Promise.resolve([]) : api('/api/knowledge/review?status=' + reviewTab).catch(() => [])
     ]);
-    reviewData = rules;
-    if (!queries.length && !rules.length) {
+    const qArr = Array.isArray(queries) ? queries : [];
+    const rArr = Array.isArray(rules) ? rules : [];
+    reviewData = rArr;
+    if (!qArr.length && !rArr.length) {
       el.innerHTML = `<div class="card empty-box"><div class="ico"><i data-lucide="inbox" style="width:32px;height:32px;"></i></div>暂无记录</div>`;
       refreshIcons();
       return;
     }
-    cards = queries.map(q => qCardHTML(q)).concat(rules.map(r => cardHTML(r)));
+    cards = qArr.map(q => qCardHTML(q)).concat(rArr.map(r => cardHTML(r)));
   }
   el.innerHTML = cards.join('');
   refreshIcons();
@@ -704,7 +722,7 @@ async function qReview(qid, status) {
   const note = (document.getElementById('qeat-' + qid) || {}).value || '';
   await api('/api/knowledge/query-review/' + qid, { method: 'POST', body: JSON.stringify({ status, note }) });
   toast(status === 'correct' ? '已通过,SQL 回灌范例池' : status === 'problem' ? '已驳回' : status === 'ignored' ? '已忽略' : '已撤销,回到待审', 'ok');
-  loadReview();
+  refreshReview();
 }
 function cardHTML(r) {
   const cb = reviewTab === 'pending' ? `<div class="cb"><input type="checkbox" ${selected.has(r.id) ? 'checked' : ''} onchange="toggleSel(${r.id}, this.checked)"></div>` : '';
@@ -835,6 +853,33 @@ function addNum() {
 }
 function delToken(i) { fTokens.splice(i, 1); renderPicker(curFSearch()); renderExpr(); }
 function clearExpr() { fTokens = []; renderPicker(curFSearch()); renderExpr(); }
+// ---- 拖拽排序(HTML5 DnD):把 token 从 dragTokIdx 移到目标位置 i ----
+let dragTokIdx = null;
+function dragTok(e, i) {
+  dragTokIdx = i;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', String(i)); } catch(_) {}
+  e.currentTarget.classList.add('dragging');
+}
+function dragOverTok(e, i) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (dragTokIdx !== null && dragTokIdx !== i) e.currentTarget.classList.add('drag-over');
+}
+function dragLeaveTok(e) { e.currentTarget.classList.remove('drag-over'); }
+function dropTok(e, i) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (dragTokIdx === null || dragTokIdx === i) { dragTokIdx = null; return; }
+  const [t] = fTokens.splice(dragTokIdx, 1);
+  fTokens.splice(i, 0, t);
+  dragTokIdx = null;
+  renderPicker(curFSearch()); renderExpr();
+}
+function dragEndTok() {
+  dragTokIdx = null;
+  document.querySelectorAll('#f-expr .tok').forEach(el => el.classList.remove('dragging', 'drag-over'));
+}
 function curFSearch() {
   const inp = document.querySelector('#f-picker') && document.querySelector('#f-picker').closest('.picker').querySelector('.p-search input');
   return inp ? inp.value : '';
@@ -850,12 +895,14 @@ function firstSlot(name, upto) {
 }
 function renderExpr() {
   const el = document.getElementById('f-expr');
+  const tokAttrs = i => `draggable="true" ondragstart="dragTok(event, ${i})" ondragover="dragOverTok(event, ${i})" ondragleave="dragLeaveTok(event)" ondrop="dropTok(event, ${i})" ondragend="dragEndTok()"`;
   el.innerHTML = fTokens.map((t, i) => {
+    const x = `<span class="x" onclick="delToken(${i})" title="删除该元素">✕</span>`;
     if (t.type === 'ind')
-      return `<span class="tok ind"><span class="slot">{${firstSlot(t.name, i)}}</span>${esc(t.name)}<span class="x" onclick="delToken(${i})"><i data-lucide="x"></i></span></span>`;
+      return `<span class="tok ind" ${tokAttrs(i)}><span class="slot">{${firstSlot(t.name, i)}}</span>${esc(t.name)}${x}</span>`;
     if (t.type === 'num')
-      return `<span class="tok num">${esc(t.val)}<span class="x" onclick="delToken(${i})"><i data-lucide="x"></i></span></span>`;
-    return `<span class="tok op">${OP_SYM[t.sym] || t.sym}<span class="x" onclick="delToken(${i})"><i data-lucide="x"></i></span></span>`;
+      return `<span class="tok num" ${tokAttrs(i)}>${esc(t.val)}${x}</span>`;
+    return `<span class="tok op" ${tokAttrs(i)}>${OP_SYM[t.sym] || t.sym}${x}</span>`;
   }).join('');
   const gen = genExpr();
   document.getElementById('f-prev-desc').textContent = gen.desc || '（还未构建表达式）';
@@ -924,7 +971,7 @@ function pickG(name) {
 }
 function renderGSel() {
   document.getElementById('g-selected').innerHTML = gSel.map(n =>
-    `<span class="chip">${esc(n)}<span class="x" onclick="pickG('${jsq(n)}')"><i data-lucide="x"></i></span></span>`).join('')
+    `<span class="chip">${esc(n)}<span class="x" onclick="pickG('${jsq(n)}')" title="移除">✕</span></span>`).join('')
     || '<span class="hint" style="margin-top:6px;">未选择指标</span>';
 }
 async function saveGroup() {
