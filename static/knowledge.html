@@ -613,7 +613,7 @@ async function loadReview() {
     const qStatus = reviewTab === 'approved' ? 'correct' : reviewTab === 'rejected' ? 'problem' : 'ignored';
     const [queries, rules] = await Promise.all([
       api('/api/knowledge/query-review?status=' + qStatus).catch(() => []),
-      api('/api/knowledge/review?status=' + reviewTab)
+      api('/api/knowledge/review?status=' + reviewTab).catch(() => [])
     ]);
     reviewData = rules;
     if (!queries.length && !rules.length) {
