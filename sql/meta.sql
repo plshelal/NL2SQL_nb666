@@ -65,7 +65,15 @@ CREATE TABLE IF NOT EXISTS query_log (
     generated_sql TEXT COMMENT '生成的SQL',
     result_status VARCHAR(32) COMMENT '成功/失败/权限拦截',
     execute_time_ms INT COMMENT '执行耗时(毫秒)',
-    created_at DATETIME DEFAULT NOW()
+    created_at DATETIME DEFAULT NOW(),
+    result_data TEXT COMMENT '查询结果JSON',
+    is_rejected BOOLEAN DEFAULT 0 COMMENT '是否权限拦截',
+    feedback TEXT COMMENT '用户反馈',
+    review_status VARCHAR(16) DEFAULT NULL COMMENT 'pending/correct/problem/ignored',
+    review_note TEXT COMMENT '审核员备注',
+    result_summary TEXT COMMENT 'Agent最终回答摘要',
+    tool_trace TEXT COMMENT 'Agent工具调用链',
+    analyzed_at DATETIME DEFAULT NULL COMMENT 'agent归纳时间'
 );
 
 CREATE TABLE IF NOT EXISTS role_permission (
