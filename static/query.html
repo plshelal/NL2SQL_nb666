@@ -393,7 +393,15 @@ function onMcpToggle(name, on) {
   // 有任意一个 MCP 开启 = external_enabled
   const anyOn = Object.values(_mcpStates).some(v => v);
   document.getElementById('btn-mcp').classList.toggle('on', anyOn);
+  updateInputTip();
   refreshIcons();
+}
+
+// 输入框占位提示:外部数据源未开时提醒先开开关;用户一旦输入,浏览器原生 placeholder 自动消失
+function updateInputTip() {
+  const anyOn = Object.values(_mcpStates).some(v => v);
+  document.getElementById('query-input').placeholder =
+    anyOn ? '输入业务问题，Enter 发送' : '提问外部数据相关问题，请先打开外部数据源';
 }
 
 // 点外部关闭 MCP 弹窗
@@ -900,6 +908,7 @@ async function doSend(query, externalQuery) {
 const qi = document.getElementById('query-input');
 qi.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 qi.addEventListener('input', () => { qi.style.height = 'auto'; qi.style.height = Math.min(qi.scrollHeight, 120) + 'px'; });
+updateInputTip();  // 初始:MCP 全关 → 占位提示"先开外部数据源"
 
 if (token) {
   fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
