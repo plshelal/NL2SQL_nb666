@@ -39,7 +39,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .header .user-info .avatar:hover { box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
 .header .user-info button { background: none; border: 1px solid var(--border); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text-secondary); }
 .main { display: flex; flex: 1; overflow: hidden; }
-.sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; transition: width .2s, margin-left .2s; overflow: hidden; }
+.sidebar.collapsed { width: 0; margin-left: -1px; border-right: none; }
+.sidebar-toggle { position: absolute; left: 260px; top: 50%; transform: translateY(-50%); z-index: 10; width: 20px; height: 36px; background: var(--surface); border: 1px solid var(--border); border-left: none; border-radius: 0 6px 6px 0; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); transition: left .2s; }
+.sidebar-toggle:hover { color: var(--primary); }
+.sidebar-toggle svg { width: 14px; height: 14px; transition: transform .2s; }
+.sidebar.collapsed + .sidebar-toggle { left: 0; }
+.sidebar.collapsed + .sidebar-toggle svg { transform: rotate(180deg); }
 .sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .sidebar-header button { width: 100%; padding: 9px; border: 1px dashed var(--border); border-radius: 8px; background: none; cursor: pointer; font-size: 13px; color: var(--primary); font-weight: 600; }
 .sidebar-header button:hover { background: #f8fafc; }
@@ -57,7 +63,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .msg-row .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
 .msg-row.assistant .avatar { background: #eff6ff; }
 .msg-row.user .avatar { background: #e0e7ff; order: 2; }
-.msg-row .bubble { max-width: 75%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+.msg-row .bubble { max-width: 88%; padding: 12px 16px; border-radius: 12px; font-size: 15px; line-height: 1.7; }
 .msg-row.user .bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
 .msg-row.assistant .bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 .bubble .stage-line { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
@@ -130,24 +136,36 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .bubble .ext-confirm .skip:hover { background:#f8fafc; }
 .bubble .note-line { font-size:12px; color:#0369a1; background:#f0f9ff; padding:6px 10px; border-radius:6px; margin-bottom:6px; }
 .bubble .ext-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#7c2d12; background:#fff7ed; border:1px solid #fdba74; padding:3px 10px; border-radius:12px; margin-bottom:6px; }
-.input-row { padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 10px; }
-.input-row textarea { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; resize: none; min-height: 44px; max-height: 120px; outline: none; }
-.input-row textarea:focus { border-color: var(--primary-light); }
-.input-row button { padding: 10px 22px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
-.input-row button:hover { background: #1e3a8a; }
-.input-row button:disabled { background: #93c5fd; }
-.tool-ico { padding: 0 12px; background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 18px; color: var(--text-secondary); flex-shrink: 0; }
-.tool-ico:hover { background: #f8fafc; border-color: var(--primary-light); color: var(--primary); }
-.mcp-pop { position: fixed; bottom: 78px; right: 24px; width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 50; overflow: hidden; }
-.mcp-pop-head { padding: 10px 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); border-bottom: 1px solid var(--border); background: #f8fafc; }
-.mcp-item { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.mcp-item:last-child { border-bottom: none; }
-.mcp-item .mi-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.mcp-item .mi-name { font-size: 14px; font-weight: 700; color: var(--text); }
-.mcp-item .mi-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
-.mcp-item .mi-dot.off { background: #cbd5e1; }
-.mcp-item .mi-tool { font-size: 12px; color: var(--text-secondary); padding: 2px 0; display: flex; align-items: center; gap: 6px; }
-.mcp-item .mi-tool .t-name { font-family: "Cascadia Code", Consolas, monospace; color: var(--primary); }
+.input-row { padding: 10px 24px; border-top: 1px solid var(--border); background: var(--surface); position: relative; }
+.input-row .input-main { display: flex; gap: 8px; align-items: flex-end; }
+/* 输入框容器:textarea + 底部图标内嵌 */
+.input-box { flex: 1; position: relative; border: 1px solid var(--border); border-radius: 12px; background: #fff; transition: border-color .15s; }
+.input-box:focus-within { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+.input-box textarea { width: 100%; border: none; background: none; padding: 10px 14px 4px; font-size: 14px; font-family: inherit; resize: none; min-height: 44px; max-height: 120px; outline: none; }
+.input-icons { display: flex; gap: 4px; padding: 4px 8px 6px; }
+.input-row .send-btn { padding: 10px 22px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; height: 44px; }
+.input-row .send-btn:hover { background: #1e3a8a; }
+.input-row .send-btn:disabled { background: #93c5fd; }
+/* 输入框内图标按钮(深度思考+MCP) */
+.input-ico { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 6px; background: none; cursor: pointer; color: #cbd5e1; flex-shrink: 0; transition: all .15s; padding: 0; }
+.input-ico:hover { background: #f1f5f9; color: var(--text-secondary); }
+.input-ico.on { background: #eff6ff; color: var(--primary); }
+.input-ico svg { width: 16px; height: 16px; }
+/* MCP 弹窗(输入框上方) */
+.mcp-pop { position: absolute; bottom: 52px; left: 24px; width: 260px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,.12); z-index: 50; display: none; }
+.mcp-pop.show { display: block; }
+.mcp-pop-head { padding: 10px 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); border-bottom: 1px solid var(--border); background: #f8fafc; border-radius: 10px 10px 0 0; }
+.mcp-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; }
+.mcp-item .mi-info { flex: 1; }
+.mcp-item .mi-name { font-size: 13px; font-weight: 600; }
+.mcp-item .mi-tools { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+/* 开关组件 */
+.swtch { position: relative; width: 34px; height: 20px; flex-shrink: 0; }
+.swtch input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; position: relative; z-index: 2; }
+.swtch .track { position: absolute; inset: 0; background: #cbd5e1; border-radius: 10px; transition: background .2s; pointer-events: none; }
+.swtch .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: transform .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.swtch input:checked ~ .track { background: var(--primary); }
+.swtch input:checked ~ .track::after { transform: translateX(14px); }
 .suggest-wrap { max-width: 640px; margin: 0 auto; padding: 48px 24px 20px; }
 .suggest-wrap .hello { text-align: center; margin-bottom: 28px; }
 .suggest-wrap .hello .t { font-size: 22px; font-weight: 700; color: var(--text); }
@@ -228,21 +246,31 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
       <button onclick="doLogout()"><i data-lucide="log-out" style="width:13px;height:13px;vertical-align:-2px;"></i> 退出</button>
     </div>
   </header>
-  <div class="main">
-    <aside class="sidebar">
+  <div class="main" style="position:relative;">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-header"><button onclick="newConversation()"><i data-lucide="plus" style="width:14px;height:14px;vertical-align:-2px;"></i> 新对话</button></div>
       <div class="conv-list" id="conv-list"></div>
     </aside>
+    <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="收起/展开对话列表">
+      <i data-lucide="chevron-left"></i>
+    </button>
     <div class="chat">
       <div class="messages" id="messages"></div>
       <div class="input-row">
-        <textarea id="query-input" placeholder="输入业务问题，Enter 发送" rows="1"></textarea>
-        <button class="tool-ico" id="mcp-btn" title="数据源 / MCP"><i data-lucide="plug"></i></button>
-        <button id="send-btn" onclick="sendMessage()">发送</button>
-      </div>
-      <div class="mcp-pop" id="mcp-pop" style="display:none">
-        <div class="mcp-pop-head">已连接数据源</div>
-        <div id="mcp-list"></div>
+        <div class="input-main">
+          <div class="input-box">
+            <textarea id="query-input" placeholder="输入业务问题，Enter 发送" rows="1"></textarea>
+            <div class="input-icons">
+              <button class="input-ico" id="btn-think" onclick="toggleThink()" title="深度思考"><i data-lucide="brain"></i></button>
+              <button class="input-ico" id="btn-mcp" onclick="toggleMcpPop(event)" title="外部数据源"><i data-lucide="plug"></i></button>
+            </div>
+          </div>
+          <button class="send-btn" id="send-btn" onclick="sendMessage()">发送</button>
+        </div>
+        <div class="mcp-pop" id="mcp-pop">
+          <div class="mcp-pop-head">外部数据源</div>
+          <div id="mcp-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -321,6 +349,61 @@ async function doRegister() {
   showMsg('reg-msg','注册成功','success'); setTimeout(()=>showPage('login'),800);
 }
 function doLogout(){ token=''; userInfo=null; localStorage.removeItem('finance_token'); showPage('login'); }
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed');
+  setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+}
+
+// === Toggle chips (外部数据 / 深度思考) ===
+let _deepThinking = false;
+let _mcpStates = {};  // {连接名: bool}
+
+// 深度思考开关(输入框内图标)
+function toggleThink() {
+  _deepThinking = !_deepThinking;
+  document.getElementById('btn-think').classList.toggle('on', _deepThinking);
+  refreshIcons();
+}
+
+// MCP 弹窗:点击图标展开,加载已配置的外部数据源列表
+async function toggleMcpPop(e) {
+  if (e) e.stopPropagation();
+  const pop = document.getElementById('mcp-pop');
+  if (pop.classList.contains('show')) { pop.classList.remove('show'); return; }
+  pop.classList.add('show');
+  const list = document.getElementById('mcp-list');
+  list.innerHTML = '<div style="padding:14px;font-size:12px;color:#94a3b8;">加载中…</div>';
+  try {
+    const r = await fetch('/api/tools/mcp', { headers: { 'Authorization': 'Bearer ' + token } });
+    const d = await r.json();
+    if (!d.length) { list.innerHTML = '<div style="padding:14px;font-size:12px;color:#94a3b8;">暂无已配置数据源</div>'; return; }
+    list.innerHTML = d.map(m => {
+      const checked = _mcpStates[m.name] ? 'checked' : '';
+      const tools = (m.tools || []).map(t => `<span class="mi-tools">${esc(t.label)}</span>`).join('');
+      return `<div class="mcp-item"><div class="mi-info"><div class="mi-name">${esc(m.name)}</div>${tools}</div>
+        <label class="swtch"><input type="checkbox" ${checked} onchange="onMcpToggle('${esc(m.name)}', this.checked)"><span class="track"></span></label></div>`;
+    }).join('');
+    refreshIcons();
+  } catch (e) { list.innerHTML = '<div style="padding:14px;font-size:12px;color:#dc2626;">加载失败</div>'; }
+}
+
+function onMcpToggle(name, on) {
+  _mcpStates[name] = on;
+  // 有任意一个 MCP 开启 = external_enabled
+  const anyOn = Object.values(_mcpStates).some(v => v);
+  document.getElementById('btn-mcp').classList.toggle('on', anyOn);
+  refreshIcons();
+}
+
+// 点外部关闭 MCP 弹窗
+document.addEventListener('click', e => {
+  const pop = document.getElementById('mcp-pop');
+  const btn = document.getElementById('btn-mcp');
+  if (pop && pop.classList.contains('show') && !pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+    pop.classList.remove('show');
+  }
+});
 
 // === Conversations ===
 function newConversation() {
@@ -749,7 +832,7 @@ async function doSend(query, externalQuery) {
   renderAll();
 
   try {
-    const body = { query, chat_context: chatCtx };
+    const body = { query, chat_context: chatCtx, external_enabled: Object.values(_mcpStates).some(v => v), deep_thinking: _deepThinking };
     if (externalQuery !== null) body.external_query = externalQuery;
     const resp = await fetch('/api/query', {
       method: 'POST',
@@ -811,30 +894,7 @@ async function doSend(query, externalQuery) {
   document.getElementById('send-btn').disabled = false;
 }
 
-// === MCP 数据源浮层 ===
-async function toggleMcpPop() {
-  const pop = document.getElementById('mcp-pop');
-  if (pop.style.display !== 'none') { pop.style.display = 'none'; return; }
-  pop.style.display = 'block';
-  const list = document.getElementById('mcp-list');
-  list.innerHTML = '<div style="padding:14px;color:#94a3b8;font-size:13px;">加载中…</div>';
-  try {
-    const r = await fetch('/api/tools/mcp', { headers: { 'Authorization': 'Bearer ' + token } });
-    const d = await r.json();
-    if (!d.length) { list.innerHTML = '<div style="padding:14px;color:#94a3b8;font-size:13px;">暂无已配置数据源</div>'; return; }
-    list.innerHTML = d.map(m => {
-      const tools = (m.tools || []).map(t =>
-        `<div class="mi-tool"><span>•</span><span class="t-name">${esc(t.tool)}</span><span>${esc(t.label)}</span></div>`).join('');
-      return `<div class="mcp-item"><div class="mi-top"><span class="mi-dot ${m.enabled ? '' : 'off'}"></span><span class="mi-name">${esc(m.name)}</span></div>${tools}</div>`;
-    }).join('');
-  } catch (e) { list.innerHTML = '<div style="padding:14px;color:#dc2626;font-size:13px;">加载失败</div>'; }
-}
-// 点 icon 切换浮层;点外部关闭
-document.getElementById('mcp-btn').addEventListener('click', e => { e.stopPropagation(); toggleMcpPop(); });
-document.addEventListener('click', e => {
-  const pop = document.getElementById('mcp-pop');
-  if (pop.style.display !== 'none' && !pop.contains(e.target) && e.target.id !== 'mcp-btn') pop.style.display = 'none';
-});
+// (旧版 MCP 浮层已删除,功能合并到输入框 toggle chips)
 
 // === Init ===
 const qi = document.getElementById('query-input');

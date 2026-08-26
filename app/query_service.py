@@ -33,7 +33,8 @@ class QueryService:
 
     # 智能体查询服务(Agent Loop 架构:模型看工具描述自主决策,快筛直通保纯内部零延迟)
     async def query(self, query: str, chat_context: dict = None, user_permissions: dict = None,
-                    log_id: int = None, external_query: str = None):
+                    log_id: int = None, external_query: str = None,
+                    external_enabled: bool = False, deep_thinking: bool = False):
         # 构建图上下文(工具内 14 节点流水线使用)
         context: DataAgentContext = {
             "embeddings": self.embeddings,
@@ -54,7 +55,8 @@ class QueryService:
 
         from app.agent.orchestrator import run_agent_query
         task = asyncio.create_task(run_agent_query(
-            query, context, writer, user_permissions, chat_context, log_id))
+            query, context, writer, user_permissions, chat_context, log_id,
+            external_enabled, deep_thinking))
 
         # 流头先推 log_id:前端用它关联反馈(审核闭环起点)
         if log_id is not None:

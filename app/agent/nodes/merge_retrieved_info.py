@@ -37,46 +37,42 @@ async def merge_retrieved_info(state:DataAgentState,runtime:Runtime[DataAgentCon
         # 去重：转换召回的字段列表结构为字典结构
         retrieved_columns_map:dict[str,ColumnInfoQdrant]={retrieved_column["id"]: retrieved_column for retrieved_column in retrieved_columns}
 
-        # 1.判断召回的指标中关联的字段是否已经存在
+        # 1.收集所有缺失的字段ID(指标关联 + 取值对应),一次性批量查
+        missing_col_ids = set()
         for retrieved_metric in retrieved_metrics:
-            # 获取当前指标关联的字段列表
-            relevant_columns=retrieved_metric["relevant_columns"]
-            # 遍历列表
-            for relevant_column in relevant_columns:
-                # relevant_column 指标关联的字段id
-                if relevant_column not in retrieved_columns_map:
-                    # 根据字段id 查询字段信息
-                    column_info_mysql:ColumnInfoMySQL=await meta_mysql_repository.get_column_info_by_id(relevant_column)
-                    if column_info_mysql is None:
-                        logger.warning(f"字段 {relevant_column} 在 meta 数据库中不存在，跳过")
-                        continue
-                    # 转换类型
-                    column_info_qdrant:ColumnInfoQdrant=_conver_column_info_form_mysql_to_qdrant(column_info_mysql)
-                    # 加入字段列表
-                    retrieved_columns_map[relevant_column]=column_info_qdrant
-
-        # 2.判断召回的字段取值对应的字段信息是否已经存在
+            for rc in retrieved_metric["relevant_columns"]:
+                if rc not in retrieved_columns_map:
+                    missing_col_ids.add(rc)
         for retrieved_value in retrieved_values:
-            # 获取当前值对象对应字段id
-            column_id = retrieved_value["column_id"]
-            # 获取召回的字段取值
-            column_value=retrieved_value["value"]
-            # 判断
-            if column_id not in retrieved_columns_map:
-                # 根据id查询字段信息
-                column_info_mysql: ColumnInfoMySQL = await meta_mysql_repository.get_column_info_by_id(column_id)
-                if column_info_mysql is None:
-                    logger.warning(f"字段 {column_id} 在 meta 数据库中不存在，跳过")
-                    continue
-                # 转换类型
-                column_info_qdrant: ColumnInfoQdrant = _conver_column_info_form_mysql_to_qdrant(column_info_mysql)
-                # 加入字段列表
-                retrieved_columns_map[column_id] = column_info_qdrant
+            cid = retrieved_value["column_id"]
+            if cid not in retrieved_columns_map:
+                missing_col_ids.add(cid)
 
-            #判断当前召回的值，是否存在对应字段的examples
-            if column_value not in retrieved_columns_map[column_id]["examples"]:
-                # 存储当前召回的值
-                retrieved_columns_map[column_id]["examples"].append(column_value)
+        # 批量查询缺失字段(1次SQL替代N次串行)
+        if missing_col_ids:
+            from sqlalchemy import text as _t2
+            placeholders = ",".join([f":i{n}" for n in range(len(missing_col_ids))])
+            params = {f"i{n}": cid for n, cid in enumerate(missing_col_ids)}
+            rows = (await meta_mysql_repository.session.execute(_t2(
+                f"SELECT id, name, type, role, examples, description, alias, table_id "
+                f"FROM column_info WHERE id IN ({placeholders})"
+            ), params)).fetchall()
+            for row in rows:
+                ex = _parse_json(row.examples)
+                al = _parse_json(row.alias)
+                col = ColumnInfoMySQL(id=row.id, name=row.name, type=row.type,
+                                       role=row.role, examples=ex,
+                                       description=row.description, alias=al,
+                                       table_id=row.table_id)
+                retrieved_columns_map[row.id] = _conver_column_info_form_mysql_to_qdrant(col)
+
+        # 取值的 examples 补充
+        for retrieved_value in retrieved_values:
+            column_id = retrieved_value["column_id"]
+            column_value = retrieved_value["value"]
+            if column_id in retrieved_columns_map:
+                if column_value not in retrieved_columns_map[column_id]["examples"]:
+                    retrieved_columns_map[column_id]["examples"].append(column_value)
 
         # 3.根据所有的字段，以表分组整合
         #表1----字段1，字段2，字段3
@@ -99,59 +95,48 @@ async def merge_retrieved_info(state:DataAgentState,runtime:Runtime[DataAgentCon
 
 
 
-        # 处理表对应的主外键关系
-        for table_id in table_to_column_map.keys():
-            # 根据表id查询当前表的主键和外键
-            key_columns:list[ColumnInfoMySQL]=await meta_mysql_repository.get_key_columns_by_table_id(table_id)
+        # 批量查询所有表的主外键(1次SQL替代N次串行往返)
+        all_table_ids = list(table_to_column_map.keys())
+        if all_table_ids:
+            from sqlalchemy import text as _t3
+            tk_places = ",".join([f":t{n}" for n in range(len(all_table_ids))])
+            tk_params = {f"t{n}": tid for n, tid in enumerate(all_table_ids)}
+            key_rows = (await meta_mysql_repository.session.execute(_t3(
+                "SELECT id, name, type, role, examples, description, alias, table_id "
+                "FROM column_info WHERE table_id IN (" + tk_places + ") "
+                "AND role IN ('primary_key', 'foreign_key')"
+            ), tk_params)).fetchall()
+            for row in key_rows:
+                tid = row.table_id
+                if tid not in table_to_column_map:
+                    continue
+                col_ids = [c["id"] for c in table_to_column_map[tid]]
+                if row.id not in col_ids:
+                    ex = _parse_json(row.examples)
+                    al = _parse_json(row.alias)
+                    col = ColumnInfoMySQL(id=row.id, name=row.name, type=row.type,
+                                           role=row.role, examples=ex,
+                                           description=row.description, alias=al,
+                                           table_id=row.table_id)
+                    table_to_column_map[tid].append(_conver_column_info_form_mysql_to_qdrant(col))
 
-            # 获取当前表对应的所有字段的id
-            column_ids=[column["id"] for column in table_to_column_map[table_id]]
-
-            # 遍历查询的主外键列表
-            for key_column in key_columns:
-                # 获取ID
-                column_id=key_column.id
-                # 判断是否已经存在
-                if column_id not in column_ids:
-                    table_to_column_map[table_id].append(_conver_column_info_form_mysql_to_qdrant(key_column))
-
-
-        # 构建表和字段的完整结构信息[(key:value),(key:value)]
-        for table_id,columns in table_to_column_map.items():
-            # table 表ID
-            # columns: 对应的字段列表
-
-            # 转换字段列表对应的实体结构
-            columns_state=[
-                ColumnInfoState(
-                    name=column['name'],
-                    type=column['type'],
-                    role=column['role'],
-                    examples=column['examples'],
-                    description=column["description"],
-                    alias=column["alias"]
-
-                )for column in columns]
-
-            #根据表ID查询信息
-            table_info_mysql:TableInfoMySQL= await meta_mysql_repository.get_table_by_id(table_id)
-            if table_info_mysql is None:
-                logger.warning(f"表 {table_id} 在 meta 数据库中不存在，跳过")
-                continue
-            # 转换结构
-            table_info= TableInfoState(
-                name=table_info_mysql.name,
-                role=table_info_mysql.role,
-                description=table_info_mysql.description,
-                columns=columns_state
-            )
-
-            # 收集表信息对象
-            table_infos.append(table_info)
-
-
-
-            pass
+        # 批量查询所有表信息(1次SQL替代N次串行往返)
+        if all_table_ids:
+            from sqlalchemy import text as _t4
+            tb_rows = (await meta_mysql_repository.session.execute(_t4(
+                "SELECT id, name, role, description FROM table_info WHERE id IN (" + tk_places + ")"
+            ), tk_params)).fetchall()
+            for row in tb_rows:
+                if row.id not in table_to_column_map:
+                    continue
+                columns_state = [ColumnInfoState(
+                    name=c['name'], type=c['type'], role=c['role'],
+                    examples=c['examples'], description=c["description"], alias=c["alias"]
+                ) for c in table_to_column_map[row.id]]
+                table_infos.append(TableInfoState(
+                    name=row.name, role=row.role, description=row.description,
+                    columns=columns_state
+                ))
 
 
 
@@ -199,4 +184,17 @@ def _conver_column_info_form_mysql_to_qdrant(column_info_mysql:ColumnInfoMySQL)-
         alias=column_info_mysql.alias,
         table_id=column_info_mysql.table_id
     )
+
+
+def _parse_json(v):
+    """MySQL 原始 SQL 查回的 JSON 字段是字符串,需手动反序列化成 list"""
+    if v is None:
+        return []
+    if isinstance(v, (list, dict)):
+        return v
+    try:
+        import json
+        return json.loads(v)
+    except Exception:
+        return []
 

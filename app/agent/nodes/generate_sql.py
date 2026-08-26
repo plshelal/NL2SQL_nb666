@@ -6,7 +6,7 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from app.agent.context import DataAgentContext
-from app.agent.llm import llm
+from app.agent.llm import llm, llm_fast
 from app.agent.nodes.execute_sql import ALL_INDS
 from app.agent.state import DataAgentState, TableInfoState, MetricInfoState
 from app.core.log import logger
@@ -15,6 +15,8 @@ from app.prompt.prompt_loader import loader_prompt
 
 async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]):
     writer = runtime.stream_writer
+    # 深度思考开关:用户在前端控制,开=用 thinking LLM(慢但准),关=用快速 LLM(快)
+    active_llm = llm if state.get("deep_thinking", False) else llm_fast
     writer({"stage": "生成sql语句"})
 
     try:
@@ -23,9 +25,10 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
         metric_infos: list[MetricInfoState] = state["metric_infos"]
         db_info = state["db_info"]
 
-        # ---- few-shot 示例 ----
+        # ---- few-shot 示例(复用 expand_keywords 预算的 query embedding) ----
         from app.agent.fewshot_rag import retrieve_examples
-        examples = await retrieve_examples(query, top_k=3)
+        _query_emb = state.get("query_embedding")
+        examples = await retrieve_examples(query, top_k=3, precomputed_embedding=_query_emb)
 
         # ---- system 角色（业务规则 + 权限 + 对话上下文）----
         system_lines = [
@@ -92,84 +95,45 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
         sql = None
 
         if sql is None:
-            # === 两步CoT：先列字段 → 判权 → 再生成SQL ===
+            # === 单步生成:先做schema收敛(基于已算好的allowed_inds),再单次LLM调用生成SQL ===
+            # 原"两步CoT"(LLM列计划→判权→收敛→再生成)合并为一步,省1次LLM调用~3-5s
             perms = state.get("user_permissions", {})
             allowed_inds = perms.get("allowed_indicators", [])
-            allowed_orgs = perms.get("allowed_orgs", [])
 
             perm_note = ""
             is_admin = perms.get("is_admin", False)
-            if not is_admin and (allowed_inds or allowed_orgs):
-                # Step 0: 取公式表的组件指标（硬匹配，不让LLM猜）
+            if not is_admin and allowed_inds:
+                # 公式组件指标也算允许(计算指标的组成部分需要查)
                 formula_indicators = set(state.get("formula_indicators", []))
+                allowed_set = set(allowed_inds) | formula_indicators
 
-                # Step 1: 让LLM列出计划使用的机构和指标
-                plan_prompt = (
-                    f"{system_prompt}\n\n"
-                    f"用户问题: {query}\n\n"
-                    f"请先列出回答这个问题需要用到的机构名称和指标名称（每行一个），不要输出SQL。格式:\n"
-                    f"机构: xxx, xxx\n"
-                    f"指标: xxx, xxx"
+                # schema 收敛:把越权指标从 metric_infos 中物理删除(LLM 看不到就无法生成)
+                _before = len(metric_infos)
+                metric_infos = [m for m in metric_infos if m["name"] in allowed_set]
+                logger.info(f"[权限] metric_infos 收敛: {_before} -> {len(metric_infos)} 可见={[m['name'] for m in metric_infos]}")
+
+                # 权限硬约束声明(告诉LLM哪些指标可用)
+                perm_note = (
+                    "\n\n【权限硬约束】当前用户仅可查询以下指标, "
+                    "禁止使用其余任何指标,违反将被直接拦截: "
+                    f"{', '.join(sorted(set(allowed_inds) | formula_indicators))}。"
                 )
-                chain = PromptTemplate.from_template("{input}") | llm | StrOutputParser()
-                plan_text = await chain.ainvoke({"input": plan_prompt})
-                plan_text = plan_text.strip()
-                logger.info(f"[两步CoT] 计划字段: {plan_text[:200]}")
 
-                # 从plan_text提取机构和指标
-                import re as _cot_re
-                plan_orgs = set(_cot_re.findall(r"江苏省\S+农商行", plan_text))
-                plan_inds = set()
-                for m in _cot_re.finditer(r"指标[:：]\s*(.+)", plan_text):
-                    plan_inds.update(i.strip() for i in m.group(1).split(","))
+                # 全部越权拦截:收敛后 metric_infos 为空且问题提及了指标关键词
+                _IND_KW_PRE = ["存款","贷款","不良","拨备","资本充足","逾期","净利润","营业收入",
+                               "营业支出","中间业务","净利息","成本收入","员工人数","网点","客户数",
+                               "存贷比","人均","点均","户均","利润率","占比","监管边际","安全边际"]
+                _q_has_ind = any(k in query for k in _IND_KW_PRE)
+                if _q_has_ind and not metric_infos:
+                    logger.warning(f"[权限] 收敛后无可用指标,拦截")
+                    writer({"result": [], "perm_rejected": True,
+                            "hint": "您无权查询相关指标,已拦截。"})
+                    return {"sql": "", "perm_rejected": True}
 
-                # Step 2: 笛卡尔积判权
-                allowed_inds_set = set(allowed_inds)
-                allowed_orgs_set = set(f"江苏省{o}农商行" for o in allowed_orgs) if allowed_orgs else plan_orgs
-
-                if plan_inds:
-                    all_forbidden = True
-                    for ind in plan_inds:
-                        if ind in allowed_inds_set:
-                            all_forbidden = False
-                            break
-                    if all_forbidden and plan_inds:
-                        logger.warning(f"[两步CoT] 全部越权，拦截")
-                        writer({"result": [], "perm_rejected": True,
-                                "hint": "您无权查询相关指标,已拦截。"})
-                        return {"sql": "", "perm_rejected": True}
-
-                    # 差集：哪些指标没匹配到任何已知来源
-                    unknown_inds = plan_inds - formula_indicators - ALL_INDS
-                    if unknown_inds:
-                        writer({"compute_note": f"指标 {', '.join(unknown_inds)} 未在直接指标库和计算公式库中匹配，系统将基于语义推断计算方式"})
-                        logger.info(f"[两步CoT] 未匹配指标: {unknown_inds}")
-
-                    # 合并公式表的组件指标
-                    plan_inds = (plan_inds | formula_indicators) & allowed_inds_set if allowed_inds else (plan_inds | formula_indicators)
-                    logger.info(f"[两步CoT] 判权后合法指标(含公式): {plan_inds}")
-
-                # Step 2.5: schema 收敛——把越权指标从注入 LLM 的 metric_infos 中物理删除
-                # LLM 看不到越权指标的描述/列信息就无法凭空生成,从源头防越权(第一层)
-                if allowed_inds:
-                    allowed_set = set(allowed_inds)
-                    _before = len(metric_infos)
-                    metric_infos = [m for m in metric_infos if m["name"] in allowed_set]
-                    logger.info(f"[权限] metric_infos 收敛: {_before} -> {len(metric_infos)} 可见={[m['name'] for m in metric_infos]}")
-
-                # Step 3: 带合法指标生成SQL + 权限硬约束声明
-                perm_note = ""
-                if plan_inds:
-                    perm_note = (
-                        "\n\n【权限硬约束】当前用户仅可查询以下指标, "
-                        "禁止使用其余任何指标,违反将被直接拦截: "
-                        f"{', '.join(sorted(plan_inds))}。"
-                    )
-
-            # 生成最终SQL
+            # 单次 LLM 调用:生成 SQL
             tml = await loader_prompt("generate_sql")
             tml += "\n\n【重要】如果问题涉及多表JOIN、子查询嵌套、窗口函数或聚合计算，请先用一两句话简述执行步骤，再输出SQL。简单查询直接输出SQL。"
-            chain = PromptTemplate.from_template(tml) | llm | StrOutputParser()
+            chain = PromptTemplate.from_template(tml) | active_llm | StrOutputParser()
             sql = await chain.ainvoke({
                 "query": query,
                 "table_infos": tables_text,
@@ -195,6 +159,17 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
             full = f"江苏省{abbr}"
             sql = _re_org.sub(rf"'{abbr}农商行'", f"'{full}农商行'", sql)
 
+        # LIKE→精确匹配(通用: 任意 org_name LIKE '%机构名%' → = '江苏省机构名')
+        # 不写死城市名,自动补全江苏省前缀
+        def _like_to_exact(m):
+            name = m.group(1)
+            if not name.startswith("江苏省"):
+                name = f"江苏省{name}"
+            return f"org_name = '{name}'"
+        sql = _re_org.sub(
+            r"org_name\s+LIKE\s+'%([^']+)%'",
+            _like_to_exact, sql, flags=_re_org.IGNORECASE)
+
         # 缺关键信息检测:对比「问题提及的实体」vs「SQL 的 WHERE 条件」
         # 仅对 index_data 事实表查询生效(查 index_list/org_info 等维表不检测)
         # 三类必要信息:日期 / 机构 / 指标,缺哪报哪,不再一刀切只报日期
@@ -206,7 +181,7 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
             # "对比A市和B市农商行净利润"被误报缺机构
             _sql_has_date = bool(_re_chk.search(
                 r"data_date\s*(?:=|IN|BETWEEN|>|<|>=|<=|DESC|ASC)", sql, _re_chk.IGNORECASE))
-            _sql_has_org = bool(_re_chk.search(r"org_name\s*(?:=|IN\s*\()", sql, _re_chk.IGNORECASE))
+            _sql_has_org = bool(_re_chk.search(r"org_name\s*(?:=|IN\s*\(|LIKE)", sql, _re_chk.IGNORECASE))
             _sql_has_ind = bool(_re_chk.search(r"index_name\s*(?:=|IN\s*\()", sql, _re_chk.IGNORECASE))
 
             # 问题是否提及特定机构(A市农商行 / 江苏省X市农商行);"各机构/所有机构"不算

@@ -9,12 +9,10 @@ async def validate_sql(state:DataAgentState,runtime:Runtime[DataAgentContext]):
     writer({"stage": "校验sql语句"})
 
     try:
-        # 获取sql语句
         sql = state["sql"]
-        # 获取dw的repository
-        dw_mysql_repository=runtime.context["dw_mysql_repository"]
-        # 校验sql
-        await dw_mysql_repository.validate_sql(sql)
+        # 用 sqlglot 做语法校验(纯内存解析,省一次 MySQL EXPLAIN 往返~0.1s)
+        import sqlglot
+        sqlglot.parse(sql, dialect="mysql")
         logger.info("校验sql正确")
         return {"error":None}
     except Exception as e:

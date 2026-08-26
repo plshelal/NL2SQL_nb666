@@ -9,7 +9,7 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from app.agent.context import DataAgentContext
-from app.agent.llm import llm
+from app.agent.llm import llm, llm_fast
 from app.agent.state import DataAgentState
 from app.core.log import logger
 from app.prompt.prompt_loader import loader_prompt
@@ -124,7 +124,7 @@ async def execute_sql(state: DataAgentState, runtime: Runtime[DataAgentContext])
                 try:
                     tml = await loader_prompt("chart_config")
                     prompt = PromptTemplate(template=tml, input_variables=["query", "result"])
-                    chain = prompt | llm | JsonOutputParser()
+                    chain = prompt | llm_fast | JsonOutputParser()
                     chart_config = await chain.ainvoke({
                         "query": query, "result": json.dumps(result, ensure_ascii=False)
                     })
@@ -140,7 +140,7 @@ async def execute_sql(state: DataAgentState, runtime: Runtime[DataAgentContext])
                     if ext_ctx:
                         tml += "\n\n【外部参考】(与库内数据分别陈述,禁止因果结论)\n" + ext_ctx
                     prompt = PromptTemplate(template=tml, input_variables=["query", "result"])
-                    chain = prompt | llm | StrOutputParser()
+                    chain = prompt | llm_fast | StrOutputParser()
                     report = await chain.ainvoke({
                         "query": query, "result": json.dumps(result, ensure_ascii=False)
                     })

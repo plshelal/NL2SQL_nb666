@@ -80,7 +80,8 @@ async def query_nl2sql(
         pass
 
     return StreamingResponse(
-        service.query(query.query, query.chat_context, perms, log_id, query.external_query),
+        service.query(query.query, query.chat_context, perms, log_id, query.external_query,
+                      query.external_enabled, query.deep_thinking),
         media_type="text/event-stream"
     )
 

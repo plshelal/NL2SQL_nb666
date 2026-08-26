@@ -19,7 +19,7 @@ from langchain_core.tools import StructuredTool
 from langgraph.prebuilt import create_react_agent
 
 from app.agent.context import DataAgentContext
-from app.agent.llm import llm
+from app.agent.llm import llm, llm_fast
 from app.agent.tools.agent_tools import (ALL_TOOLS,
                                          lookup_indicator_group,
                                          read_knowledge,
@@ -106,19 +106,94 @@ def _build_input_messages(question: str, chat_context: dict | None) -> list[Huma
 
 async def run_agent_query(question: str, ctx: DataAgentContext, writer,
                           user_permissions: dict | None = None,
-                          chat_context: dict | None = None, log_id: int | None = None):
+                          chat_context: dict | None = None, log_id: int | None = None,
+                          external_enabled: bool = False, deep_thinking: bool = False):
     """主入口:SSE 事件生成器。所有问题 → Agent 循环,模型自主选工具。"""
     from app.agent.agent_runner import run_finance_pipeline
 
     reset_finance_cache()
-    logger.info("[orchestrator] Agent 循环(全量)")
-    writer({"stage": "分析数据源"})
+    logger.info(f"[orchestrator] Agent 循环 外部数据={external_enabled} 深度思考={deep_thinking}")
     t0 = time.time()
+    _result_ready_time = [None]  # 工具执行完成(结果就绪)的时间点
+
+    # 快路:无外部数据 → 跳过 Agent LLM 决策,直接跑内部图
+    # 省掉 Agent LLM 调用,直接进分词→召回→生成→执行。无 Agent 格式化,
+    # 故在此把图的返回值按前端契约转发(表格/分析/图表/各状态框)
+    if not external_enabled:
+        logger.info("[orchestrator] 快路:无外部数据,跳过 Agent 决策,直接跑内部图")
+        # 不手推 stage:图入口 extract_keywords 自身即发"提取关键字",避免重复
+        result = await run_finance_pipeline(
+            question, ctx, writer, user_permissions, chat_context, log_id,
+            deep_thinking=deep_thinking)
+        _result_ready_time[0] = time.time()
+
+        # 图返回 agent_runner 终态 JSON(无 final_answer 键)——按 status 转发给前端
+        import json as _json
+        try:
+            rd = _json.loads(result) if isinstance(result, str) else {}
+        except Exception:
+            rd = {}
+        status = rd.get("status", "no_data")
+        final_text = ""
+        if status == "ok":
+            rows = rd.get("rows", [])
+            if rows:
+                writer({"result": rows})            # 数据表格 + CSV 导出
+            report = rd.get("report", "")            # 图内 LLM 生成的纯文本分析(analysis_report)
+            final_text = report or (f"已查询到 {len(rows)} 条数据。" if rows else "已查询到数据。")
+            tool_trace = ["query_finance_db(direct)"]
+        elif status == "perm_rejected":
+            writer({"perm_rejected": True, "hint": rd.get("hint", "无权访问")})
+            tool_trace = ["query_finance_db(direct:perm_rejected)"]
+        elif status == "missing_info":
+            writer({"missing_info": True, "hint": rd.get("hint", "缺少关键信息")})
+            tool_trace = ["query_finance_db(direct:missing_info)"]
+        elif status == "error":
+            writer({"error": rd.get("error", "查询过程出错")})
+            tool_trace = ["query_finance_db(direct:error)"]
+        else:  # no_data / need_clarify(内部图无澄清节点,兜底用文本)
+            final_text = rd.get("hint") or rd.get("question") or "未查询到数据"
+            tool_trace = ["query_finance_db(direct:" + status + ")"]
+
+        logger.info(f"[计时] 结果就绪: {time.time() - t0:.1f}s (从发消息到查完数据)")
+        logger.info(f"[计时] 汇总返回: {time.time() - t0:.1f}s (从发消息到最终回答)")
+        logger.info(f"[orchestrator] 最终回答(快路直查): status={status} {str(final_text)[:500]}")
+
+        # RubikSQL 经验记录
+        try:
+            await ctx["meta_mysql_repository"].write_experience(
+                query_text=question, final_sql=rd.get("sql", ""), outcome="agent_trace",
+                error_message=" || ".join(tool_trace), latency_ms=int((time.time() - t0) * 1000),
+                user_position=(user_permissions or {}).get("position", ""))
+        except Exception as e:
+            logger.warning(f"[orchestrator] agent_trace 经验写入失败(忽略): {e}")
+
+        # tool_trace + result_summary 回写 query_log
+        if log_id:
+            try:
+                from sqlalchemy import text as _t
+                from app.clients.mysql_client_manager import meta_mysql_client_manager
+                async with meta_mysql_client_manager.session_factory() as _s:
+                    await _s.execute(_t(
+                        "UPDATE query_log SET tool_trace=:t, result_summary=:r, "
+                        "review_status=COALESCE(review_status, CASE WHEN :t='' THEN 'ignored' ELSE NULL END) "
+                        "WHERE id=:i"),
+                        {"t": " || ".join(tool_trace)[:2000] if tool_trace else "",
+                         "r": str(final_text)[:5000], "i": log_id})
+                    await _s.commit()
+            except Exception as e:
+                logger.warning(f"[orchestrator] tool_trace 写 query_log 失败(忽略): {e}")
+
+        writer({"final_answer": final_text})
+        return
 
     # 行内工具包装:附加用户权限/对话上下文/审计id
     async def _fin(question: str, config=None):
-        return await run_finance_pipeline(
-            question, ctx, writer, user_permissions, chat_context, log_id)
+        result = await run_finance_pipeline(
+            question, ctx, writer, user_permissions, chat_context, log_id,
+            deep_thinking=deep_thinking)
+        _result_ready_time[0] = time.time()
+        return result
 
     fin_tool = StructuredTool.from_function(
         coroutine=_fin,
@@ -151,8 +226,9 @@ async def run_agent_query(question: str, ctx: DataAgentContext, writer,
         description=lookup_formula.description,
         args_schema=lookup_formula.args_schema,
     )
-    ext_macro = _bind_ext(query_macro_indicator, ctx, _EvtWriter())
-    ext_news = _bind_ext(search_financial_news, ctx, _EvtWriter())
+    # 外部工具:仅当用户开启"外部数据"开关时绑定,否则 Agent 看不到这俩工具
+    ext_macro = _bind_ext(query_macro_indicator, ctx, _EvtWriter()) if external_enabled else None
+    ext_news = _bind_ext(search_financial_news, ctx, _EvtWriter()) if external_enabled else None
 
     # RubikSQL 回灌:approved 的 tool_choice/alias 规则注入系统提示(异步,独立 session+缓存)
     from app.agent.knowledge_feedback import get_prompt_block, get_semantic_hints
@@ -162,7 +238,14 @@ async def run_agent_query(question: str, ctx: DataAgentContext, writer,
     from datetime import datetime as _dt
     _today = _dt.now().strftime("%Y年%m月%d日")
     _date_info = f'\n\n【系统时间】今天是 {_today}。用户说"这个月""最近""上个月"等时间词时,据此推算具体年月。'
-    agent = create_react_agent(llm, [grp_tool, read_tool, fml_tool, fin_tool, ext_macro, ext_news],
+    # Agent 用快速 LLM(无 thinking):决策调工具+最终格式化都是简单任务,无需深度推理
+    # generate_sql 内部仍用 llm(有 thinking),SQL 质量不受影响
+    # Agent 用快速 LLM(无 thinking):决策调工具+最终格式化都是简单任务,无需深度推理
+    # generate_sql 内部按 deep_thinking 开关选 llm(有 thinking) 或 llm_fast(无)
+    _tools = [grp_tool, read_tool, fml_tool, fin_tool]
+    if ext_macro: _tools.append(ext_macro)
+    if ext_news: _tools.append(ext_news)
+    agent = create_react_agent(llm_fast, _tools,
                                prompt=SYSTEM_PROMPT + _date_info + prompt_block + semantic_hints)
 
     tool_trace: list[str] = []
@@ -202,6 +285,11 @@ async def run_agent_query(question: str, ctx: DataAgentContext, writer,
         logger.error(f"[orchestrator] Agent 循环异常: {e}")
         final_text = f"查询过程出错: {e}"
 
+    # 计时:起点=用户发消息(t0),终点1=结果就绪(工具返回),终点2=汇总返回(ainvoke完成)
+    _t_result = _result_ready_time[0]
+    if _t_result:
+        logger.info(f"[计时] 结果就绪: {_t_result - t0:.1f}s (从发消息到查完数据)")
+    logger.info(f"[计时] 汇总返回: {time.time() - t0:.1f}s (从发消息到最终回答)")
     logger.info(f"[orchestrator] 最终回答({len(tool_trace)}次工具调用): {str(final_text)[:500]}")
 
     # RubikSQL:Agent 轨迹经验

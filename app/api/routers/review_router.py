@@ -473,14 +473,21 @@ async def add_group(body=Body(...), user=Depends(get_current_user)):
 
 @review_router.get("/api/tools/mcp")
 async def list_mcp(user=Depends(get_current_user)):
-    """聊天框 MCP icon 用:返回管理员已配置的外部 MCP 连接(只读展示)。
-    读 conf/tools.yaml,目前即同花顺 iFinD(EDB + 资讯)。所有登录用户可看。"""
+    """聊天框 MCP icon 用:返回已配置且可用的外部 MCP 连接(只读展示)。
+    仅当部署者配了 IFIND_MCP_TOKEN 且总开关打开时才返回,否则空列表
+    ——前端显示"暂无已配置数据源",避免用户开了开关却因无令牌调用失败。"""
+    import os
     import yaml as _yaml
+    # 总开关:env EXTERNAL_ENABLED 覆盖 tools.yaml(与 ifind_mcp._external_enabled 一致)
+    _env = os.getenv("EXTERNAL_ENABLED")
+    ext_on = (_env.strip() not in ("0", "false", "False", "")) if _env is not None else True
+    # 没配令牌 或 总开关关 → 外部数据不可用,不展示
+    if not ext_on or not os.getenv("IFIND_MCP_TOKEN", "").strip():
+        return []
     cfg_path = ROOT_DIR / "conf" / "tools.yaml"
     out = []
     try:
         cfg = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
-        ext_on = cfg.get("external_enabled", True)
         ifind = cfg.get("ifind") or {}
         tools = []
         labels = {"edb": "宏观经济指标", "news": "财经资讯检索"}
@@ -492,7 +499,7 @@ async def list_mcp(user=Depends(get_current_user)):
                 tools.append({"key": key, "label": labels.get(key, key),
                               "tool": sub.get("tool", ""), "desc": descs.get(key, "")})
         if tools:
-            out.append({"name": "同花顺 iFinD", "enabled": bool(ext_on), "tools": tools})
+            out.append({"name": "同花顺 iFinD", "enabled": True, "tools": tools})
     except Exception as e:
         logger.warning(f"[MCP展示] 读取 tools.yaml 失败: {e}")
     return out

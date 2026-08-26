@@ -69,18 +69,23 @@ async def expand_keywords(state: DataAgentState, runtime: Runtime[DataAgentConte
 
         logger.info(f"扩展关键词: column={column_kw}, metric={metric_kw}, value={value_kw}")
 
-        # 3. 批量向量化(col/met 关键词始终相同,统一一套 embedding 不重复计算)
+        # 3. 批量向量化(col/met 关键词 + 原始问题,一次 TEI 调用)
         all_texts = list(set(keywords + column_kw + (linked or [])))
+        # 把原始问题也加入 embedding 列表(fewshot_rag 直接复用,省一次 TEI 调用)
+        if query not in all_texts:
+            all_texts.append(query)
         all_embeddings = await embeddings.aembed_documents(all_texts)
         embed_map = dict(zip(all_texts, all_embeddings))
-        shared_emb = [embed_map[t] for t in all_texts]
+        shared_emb = [embed_map[t] for t in all_texts if t != query]
+        query_emb = embed_map.get(query, None)
 
         return {
-            "expanded_column_keywords": all_texts,
-            "expanded_metric_keywords": all_texts,
+            "expanded_column_keywords": [t for t in all_texts if t != query],
+            "expanded_metric_keywords": [t for t in all_texts if t != query],
             "expanded_value_keywords": value_kw,
             "col_embeddings": shared_emb,
             "met_embeddings": shared_emb,
+            "query_embedding": query_emb,
         }
     except Exception as e:
         logger.error(f"扩展关键词异常：{str(e)}")

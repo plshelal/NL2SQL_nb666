@@ -19,7 +19,8 @@ from app.core.log import logger
 async def run_finance_pipeline(question: str, ctx: DataAgentContext,
                                writer=None, user_permissions: dict | None = None,
                                chat_context: dict | None = None, log_id: int | None = None,
-                               formula_context: str = "", formula_indicators: list = None) -> str:
+                               formula_context: str = "", formula_indicators: list = None,
+                               deep_thinking: bool = False) -> str:
     """执行行内问数流水线,返回给模型的 JSON 字符串结果。"""
     import json
 
@@ -43,6 +44,8 @@ async def run_finance_pipeline(question: str, ctx: DataAgentContext,
         # 预处理层产物:组词已展开、公式已匹配,传给内部图跳过重复工作
         "formula_context": formula_context or "",
         "formula_indicators": formula_indicators or [],
+        # 深度思考开关:generate_sql 据此选 llm(thinking) 或 llm_fast(无 thinking)
+        "deep_thinking": deep_thinking,
     }
 
     final: dict = {}

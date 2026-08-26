@@ -84,18 +84,26 @@ async def precompute_embeddings():
     print(f"[Few-shot RAG] 预计算完成，缓存已保存 ({len(_embeddings)} 条)")
 
 
-async def retrieve_examples(query: str, top_k: int = 3) -> list[dict]:
-    """检索与当前问题最相似的训练示例"""
+async def retrieve_examples(query: str, top_k: int = 3, precomputed_embedding: list = None) -> list[dict]:
+    """检索与当前问题最相似的训练示例
+
+    precomputed_embedding: 如果 expand_keywords 已经算好了问题的 embedding,
+    直接传入复用,省一次 TEI 调用(~0.5s)。
+    """
     _load_data()
 
     # 无数据或无向量 → 返回空(不崩)
     if not _questions or _embeddings is None or len(_embeddings) == 0:
         return []
 
-    import httpx
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(_TEI_URL, json={"inputs": [query]})
-        query_emb = np.array(resp.json()[0]["embeddings"])
+    # 优先复用预算 embedding,避免重复调 TEI
+    if precomputed_embedding is not None:
+        query_emb = np.array(precomputed_embedding)
+    else:
+        import httpx
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(_TEI_URL, json={"inputs": [query]})
+            query_emb = np.array(resp.json()[0]["embeddings"])
 
     # 维度不匹配 → 返回空(兜底)
     if _embeddings.shape[-1] != query_emb.shape[-1]:

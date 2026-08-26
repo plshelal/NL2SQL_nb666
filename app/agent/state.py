@@ -41,6 +41,7 @@ class DataAgentState(TypedDict):
     expanded_value_keywords: list
     col_embeddings: list
     met_embeddings: list
+    query_embedding: list  # 预算的原始问题 embedding(fewshot_rag 复用,免二次调 TEI)
     formula_context: str
     chat_context: dict
     linked_indicators: list
