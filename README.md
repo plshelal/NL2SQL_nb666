@@ -15,7 +15,7 @@
    powershell -c "irm https://astral.sh/install.ps1 | iex"
    ```
    装完后关掉 PowerShell 重新打开，输入 `uv --version` 确认能看到版本号
-4. **DeepSeek API Key** — 去 https://platform.deepseek.com/ 注册，拿到 `sk-` 开头的密钥
+4. **DeepSeek API Key** — 去 https://platform.deepseek.com/ 注册，拿到 `sk-` 开头的密钥(若你部署不提供相关资费，用我的即可sk-dc53fd20e19d48b5a562ea9b76f1d803)
 
 
 ### 重要：配置 Docker 镜像加速（不配会很慢）
