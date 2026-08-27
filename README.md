@@ -10,9 +10,10 @@
 
 1. **一台 Windows 电脑**（Win10/11 都行）
 2. **Docker Desktop** — 下载安装：https://www.docker.com/products/docker-desktop/ ，装完打开它，等右下角图标变成绿色
-3. **uv**（Python 包管理器）— 打开 PowerShell，粘贴这行回车：
+3. **uv**（Python 包管理器）— 打开 PowerShell，粘贴下面一行回车：
    ```
-   powershell -c "irm https://astral.sh/install.ps1 | iex"
+     powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+     winget install astral-sh.uv（上面要是挂了就用这个备用链接）
    ```
    装完后关掉 PowerShell 重新打开，输入 `uv --version` 确认能看到版本号
 4. **DeepSeek API Key** — 去 https://platform.deepseek.com/ 注册，拿到 `sk-` 开头的密钥(若你部署不提供相关资费，用我的即可sk-dc53fd20e19d48b5a562ea9b76f1d803)
