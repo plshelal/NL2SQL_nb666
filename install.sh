@@ -75,7 +75,7 @@ wait_for() {
   echo "  ✗ $name 超时(120s)"; return 1
 }
 wait_for "MySQL"  "docker exec finance-mysql mysqladmin ping -uroot -p${DBPWD} 2>/dev/null"
-wait_for "Qdrant"  "curl -sf http://localhost:6333/health"
+wait_for "Qdrant"  "curl -sf http://localhost:6333/readyz"
 wait_for "ES"      "curl -sf http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=60s"
 wait_for "TEI"     "curl -sf http://localhost:8081/health"
 

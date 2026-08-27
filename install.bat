@@ -56,7 +56,7 @@ echo   ✗ MySQL 超时 & goto :fail
 
 echo   等待 Qdrant...
 for /l %%i in (1,1,30) do (
-  curl -sf http://localhost:6333/health >nul 2>&1 && (echo   ✓ Qdrant 就绪 & goto qdrant_ok)
+  curl -sf http://localhost:6333/readyz >nul 2>&1 && (echo   ✓ Qdrant 就绪 & goto qdrant_ok)
   timeout /t 2 /nobreak >nul
 )
 echo   ✗ Qdrant 超时 & goto :fail
