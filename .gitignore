@@ -20,8 +20,7 @@ wheels/
 *.swp
 *.swo
 
-# Local config and secrets (never commit)
-.env
+# Local config (私密库 .env 已跟入仓库; 本地临时覆盖用 .env.local)
 .env.local
 .env.*.local
 conf/app_config.local.yaml

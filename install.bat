@@ -25,36 +25,17 @@ echo ✓ Docker 和 uv 已就绪
 REM ---- 2. 配置 .env ----
 echo [2/9] 配置 .env...
 if not exist .env (
-  copy .env.example .env >nul
-  echo   已从 .env.example 复制 .env
-)
-
-REM 检查 DEEPSEEK_API_KEY
-findstr /C:"DEEPSEEK_API_KEY=your-deepseek-api-key" .env >nul 2>&1
-if %errorlevel% equ 0 (
-  echo.
-  echo   ⚠ DEEPSEEK_API_KEY 未填写!
-  echo   请打开 .env 填入你的 DeepSeek API Key
-  echo   申请地址: https://platform.deepseek.com/
-  echo   填完后按回车继续(或 Ctrl+C 退出)...
+  echo   [错误] 未找到 .env
+  echo   请先按 README 复制 .env.example 为 .env,并填入 DeepSeek API Key
   pause
-  findstr /C:"DEEPSEEK_API_KEY=your-deepseek-api-key" .env >nul 2>&1
-  if %errorlevel% equ 0 (
-    echo ✗ DEEPSEEK_API_KEY 仍为空,无法继续
-    pause & exit /b 1
-  )
+  exit /b 1
 )
 
-REM 检查 DB_PASSWORD(占位符则设为默认)
+REM 读 DB_PASSWORD 供后续 mysql -p 用(默认 123321)
 set DBPWD=123321
 for /f "tokens=2 delims==" %%a in ('findstr /B "DB_PASSWORD" .env 2^>nul') do set DBPWD=%%a
 if "!DBPWD!"=="" set DBPWD=123321
-if "!DBPWD!"=="your-password" (
-  echo   DB_PASSWORD 未设置,使用默认值 123321
-  set DBPWD=123321
-  powershell -c "(Get-Content .env) -replace 'DB_PASSWORD=your-password','DB_PASSWORD=123321' | Set-Content .env" 2>nul
-)
-echo ✓ .env 已配置 ^(DB_PASSWORD=!DBPWD!^)
+echo   .env 就绪, DB_PASSWORD=!DBPWD!
 
 REM ---- 3. 启动 Docker 服务 ----
 echo [3/9] 启动 Docker 服务(MySQL + Qdrant + ES + TEI)...
