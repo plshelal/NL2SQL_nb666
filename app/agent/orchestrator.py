@@ -184,7 +184,7 @@ async def run_agent_query(question: str, ctx: DataAgentContext, writer,
             except Exception as e:
                 logger.warning(f"[orchestrator] tool_trace 写 query_log 失败(忽略): {e}")
 
-        writer({"final_answer": final_text})
+        writer({"final_answer": final_text, "elapsed": round(time.time() - t0, 1)})
         return
 
     # 行内工具包装:附加用户权限/对话上下文/审计id
@@ -333,7 +333,7 @@ async def run_agent_query(question: str, ctx: DataAgentContext, writer,
         except Exception as e:
             logger.warning(f"[orchestrator] result_summary 回写失败(忽略): {e}")
 
-    writer({"final_answer": final_text})
+    writer({"final_answer": final_text, "elapsed": round(time.time() - t0, 1)})
     return
 
 

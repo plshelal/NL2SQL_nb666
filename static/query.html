@@ -184,6 +184,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .act-ico { display: inline-flex; align-items: center; padding: 3px; border-radius: 5px; cursor: pointer; color: var(--text-secondary); }
 .act-ico:hover { background: #f1f5f9; color: var(--primary); }
 .act-ico svg { width: 14px; height: 14px; }
+.elapsed { font-size: 11px; color: var(--text-secondary); margin-right: auto; display: inline-flex; align-items: center; gap: 3px; }
+.elapsed svg { width: 13px; height: 13px; }
 /* 反馈弹框 */
 .feedback-modal { position: fixed; inset: 0; background: rgba(15,23,42,.4); display: none; align-items: center; justify-content: center; z-index: 100; }
 .feedback-modal.show { display: flex; }
@@ -707,7 +709,9 @@ function msgHTML(m, i, thinkingOnly) {
   }
   // 气泡底部操作栏:复制/删除/反馈(有实质内容时才显示)
   if (m.final_answer || (m.result && m.result.length)) {
+    const _el = m.elapsed != null ? `<span class="elapsed"><i data-lucide="timer"></i> ${m.elapsed}s</span>` : '';
     h += `<div class="action-bar">
+      ${_el}
       <span class="act-ico" onclick="copyAnswer(${i})" title="复制"><i data-lucide="copy"></i></span>
       <span class="act-ico" onclick="confirmDelete(${i})" title="删除"><i data-lucide="trash-2"></i></span>
       <span class="act-ico" onclick="openFeedback(${i})" title="反馈"><i data-lucide="message-square-plus"></i></span>
@@ -835,7 +839,7 @@ async function doSend(query, externalQuery) {
 
   // 添加用户消息 + AI 占位(二轮确认时用户消息为原问题,界面如实呈现)
   conv.messages.push({ role: 'user', content: query });
-  const assistMsg = { role: 'assistant', result: null, _chartData: null, report: '', error: '', perm_rejected: false, missing_info: false, perm_filtered: false, hint: '', stages: [], clarification: null, external_confirm: null, note: '', external_source: '', external_kind: '', final_answer: '', log_id: null, feedbackSent: false };
+  const assistMsg = { role: 'assistant', result: null, _chartData: null, report: '', error: '', perm_rejected: false, missing_info: false, perm_filtered: false, hint: '', stages: [], clarification: null, external_confirm: null, note: '', external_source: '', external_kind: '', final_answer: '', log_id: null, elapsed: null, feedbackSent: false };
   conv.messages.push(assistMsg);
   renderAll();
 
@@ -889,6 +893,7 @@ async function doSend(query, externalQuery) {
           if (data.chart) assistMsg._chartData = data.chart;
           if (data.report) assistMsg.report = data.report;
           if (data.final_answer) assistMsg.final_answer = data.final_answer;
+          if (data.elapsed != null) assistMsg.elapsed = data.elapsed;
           // result/chart/report/final_answer 只累积不渲染,流结束 renderMessages 一次性画
           // 只有 stage 实时更新思考流(第578行已处理)
         } catch(_) {}
