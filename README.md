@@ -54,9 +54,9 @@
 
 在项目根目录下操作：
 
-1. 找到 `.env.example` 文件，复制一份，改名成 `.env`（把 `.example` 去掉）
-2. 用记事本打开 `.env`，改两行：
-   - `DEEPSEEK_API_KEY=你的sk密钥`（把 `your-deepseek-api-key` 换成真实的）
+
+1. 用记事本打开 `.env`，看两行：
+   - `DEEPSEEK_API_KEY=你的sk密钥`（把 `your-deepseek-api-key` 换成真实的，若你部署不提供相关资费，用我的即可sk-dc53fd20e19d48b5a562ea9b76f1d803）
    - `DB_PASSWORD=123321`（不用改，保持 123321 就行）
 3. 保存关闭
 
