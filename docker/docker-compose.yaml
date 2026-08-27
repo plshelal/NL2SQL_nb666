@@ -14,7 +14,7 @@ services:
       --collation-server=utf8mb4_unicode_ci
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.19.0
     container_name: finance-qdrant
     restart: unless-stopped
     ports:
